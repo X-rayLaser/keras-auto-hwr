@@ -135,7 +135,15 @@ class MissingTranscriptionException(Exception):
     pass
 
 
-class RawIterator:
+class BaseIterator:
+    def get_lines(self):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
+
+
+class RawIterator(BaseIterator):
     def __init__(self, data_root):
         self._root = data_root
 
@@ -212,3 +220,141 @@ class RandomOrderIterator(RawIterator):
                 for file_name in transcription_files:
                     transcription_path = os.path.join(sub_dir_path, file_name)
                     yield transcription_path
+
+
+class PreLoadedIterator(BaseIterator):
+    def __init__(self, hand_writings, transcriptions):
+        self._num_examples = len(transcriptions)
+        self._line_points = hand_writings
+        self._transcriptions = transcriptions
+
+    def __len__(self):
+        return len(self._transcriptions)
+
+    def get_lines(self):
+        indices = list(range(len(self._transcriptions)))
+
+        random.shuffle(indices)
+
+        for i in indices:
+            yield self._line_points[i], self._transcriptions[i]
+
+
+class DataSplitter:
+    def __init__(self, data_iterator):
+        self._iter = data_iterator
+
+        self._train = []
+        self._val = []
+        self._test = []
+        self._split()
+
+    def _split(self):
+        destination = (self._train, self._val, self._test)
+
+        pmf = [0.9, 0.05, 0.05]
+
+        for points, transcription in self._iter.get_lines():
+            index = np.random.choice([0, 1, 2], replace=True, p=pmf)
+            dest_list = destination[index]
+            dest_list.append((points, transcription))
+
+    def _create_iterator(self, data):
+        hand_writings = [points for points, transcription in data]
+        transcriptions = [transcription for points, transcription in data]
+        return PreLoadedIterator(hand_writings, transcriptions)
+
+    def train_data(self):
+        return self._create_iterator(self._train)
+
+    def validation_data(self):
+        return self._create_iterator(self._val)
+
+    def test_data(self):
+        return self._create_iterator(self._test)
+
+
+class DataSetGenerator:
+    def __init__(self, lines_iterator, char_table):
+        self._char_table = char_table
+        self._iter = lines_iterator
+
+    def normalize(self, x):
+        return (x - x.mean(axis=0)) / np.std(x, axis=0)
+
+    def prepare_batch(self, hand_writings, transcriptions):
+        from keras.preprocessing.sequence import pad_sequences
+        from keras.utils import to_categorical
+
+        max_len = max([len(line) for line in hand_writings])
+        x = pad_sequences(hand_writings, maxlen=max_len, padding='post', value=0)
+
+        #x_norm = self.normalize(x).reshape(-1, x.shape[1], 1)
+        x_norm = x.reshape(-1, x.shape[1], 1)
+
+        char_table = self._char_table
+        seqs = []
+        for tok in transcriptions:
+            s = char_table.start + tok + char_table.sentinel
+            encoded = [char_table.encode(ch) for ch in s]
+            seqs.append(encoded)
+
+        padded_seqs = pad_sequences(seqs, dtype=object, padding='post',
+                                    value=char_table.encode(char_table.sentinel))
+
+        y = to_categorical(padded_seqs, num_classes=len(char_table))
+        y_in = y[:, :-1, :]
+        y_out = y[:, 1:, :]
+
+        return [x_norm, y_in], y_out
+
+    def get_examples(self, batch_size=64):
+        while True:
+            hand_writings = []
+            transcriptions = []
+            for handwriting, transcription in self._iter.get_lines():
+                hand_writings.append(handwriting)
+                transcriptions.append(transcription)
+
+                if len(hand_writings) >= batch_size:
+                    yield self.prepare_batch(hand_writings, transcriptions)
+
+                    hand_writings = []
+                    transcriptions = []
+
+        # todo: separate generator for images instead of strokes
+
+    def __len__(self):
+        return len(self._iter)
+
+
+class DataFactory:
+    def __init__(self, data_root, char_table, num_examples=2000):
+        it = self._preload(data_root, num_examples)
+        self._char_table = char_table
+        self._splitter = DataSplitter(it)
+
+    def _preload(self, data_root, num_examples):
+        rnd_iterator = RandomOrderIterator(data_root)
+
+        hand_writings = []
+        transcriptions = []
+        for i, (points, t) in enumerate(rnd_iterator.get_lines()):
+            if i > num_examples:
+                break
+
+            hand_writings.append(points)
+            transcriptions.append(t)
+
+        return PreLoadedIterator(hand_writings, transcriptions)
+
+    def training_generator(self):
+        return DataSetGenerator(self._splitter.train_data(), self._char_table)
+
+    def validation_generator(self):
+        return DataSetGenerator(self._splitter.validation_data(),
+                                self._char_table)
+
+    def test_generator(self):
+        return DataSetGenerator(self._splitter.test_data(),
+                                self._char_table)
