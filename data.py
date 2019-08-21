@@ -371,10 +371,8 @@ class DataSetGenerator:
                                     value=char_table.encode(char_table.sentinel))
 
         y = to_categorical(padded_seqs, num_classes=len(char_table))
-        #y_in = y[:, :-1, :]
-        #y_out = y[:, 1:, :]
-        y_in = y[:, :1, :]
-        y_out = y[:, 1:2, :]
+        y_in = y[:, :-1, :]
+        y_out = y[:, 1:, :]
 
         return [x_norm, y_in], y_out
 
