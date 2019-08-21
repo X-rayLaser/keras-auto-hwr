@@ -6,6 +6,62 @@ import os
 import random
 
 
+class CharacterTable:
+    def __init__(self, corpus):
+        charset = set(corpus + self.sentinel + self.start)
+        self._char_to_index = dict((ch, index) for index, ch in enumerate(charset))
+        self._index_to_char = dict((v, k) for k, v in self._char_to_index.items())
+
+    def save(self, path):
+        import json
+        d = {
+            'char_to_index': self._char_to_index,
+            'index_to_char': self._index_to_char
+        }
+        json_str = json.dumps(d)
+        with open(path, 'w') as f:
+            f.write(json_str)
+
+    def load(self, path):
+        import json
+        with open(path, 'r') as f:
+            s = f.read()
+
+        d = json.loads(s)
+        self._char_to_index = d['char_to_index']
+        self._index_to_char = d['index_to_char']
+
+        d = {}
+        for k, v in self._index_to_char.items():
+            d[int(k)] = v
+
+        self._index_to_char = d
+
+    def is_sentinel(self, ch):
+        return self.sentinel == ch
+
+    @property
+    def sentinel(self):
+        return '\n'
+
+    @property
+    def start(self):
+        return '_'
+
+    def encode(self, ch):
+        return self._char_to_index[ch]
+
+    def decode(self, index):
+        if index in self._index_to_char:
+            return self._index_to_char[index]
+        else:
+            raise Exception('Unknown {}'.format(index))
+            return '?'
+
+    def __len__(self):
+        return len(self._char_to_index)
+
+
 class StrokeLine:
     def __init__(self, xml_path):
         tree = ET.parse(xml_path)
@@ -259,6 +315,14 @@ class DataSplitter:
             dest_list = destination[index]
             dest_list.append((points, transcription))
 
+        if len(self._val) == 0:
+            self._val.append(self._train.pop())
+
+        if len(self._test) == 0:
+            self._test.append(self._train.pop())
+
+        assert len(self._train) > 0
+
     def _create_iterator(self, data):
         hand_writings = [points for points, transcription in data]
         transcriptions = [transcription for points, transcription in data]
@@ -286,7 +350,11 @@ class DataSetGenerator:
         from keras.preprocessing.sequence import pad_sequences
         from keras.utils import to_categorical
 
-        max_len = max([len(line) for line in hand_writings])
+        if len(hand_writings) == 1:
+            max_len = len(hand_writings[0])
+        else:
+            max_len = max([len(line) for line in hand_writings])
+
         x = pad_sequences(hand_writings, maxlen=max_len, padding='post', value=0)
 
         #x_norm = self.normalize(x).reshape(-1, x.shape[1], 1)
@@ -303,8 +371,10 @@ class DataSetGenerator:
                                     value=char_table.encode(char_table.sentinel))
 
         y = to_categorical(padded_seqs, num_classes=len(char_table))
-        y_in = y[:, :-1, :]
-        y_out = y[:, 1:, :]
+        #y_in = y[:, :-1, :]
+        #y_out = y[:, 1:, :]
+        y_in = y[:, :1, :]
+        y_out = y[:, 1:2, :]
 
         return [x_norm, y_in], y_out
 
@@ -321,6 +391,9 @@ class DataSetGenerator:
 
                     hand_writings = []
                     transcriptions = []
+
+            if len(hand_writings) > 0:
+                yield self.prepare_batch(hand_writings, transcriptions)
 
         # todo: separate generator for images instead of strokes
 
