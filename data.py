@@ -118,13 +118,7 @@ class StrokeLine:
                 prev_point = (x, y)
 
     def points(self):
-        points = [(x, y) for x, y, prev in self.points_generator()]
-        v = []
-        for x, y in points:
-            v.append(x)
-            v.append(y)
-
-        return v
+        return [(x, y) for x, y, prev in self.points_generator()]
 
     def heights(self):
         v = []
@@ -268,9 +262,8 @@ class SyntheticIterator(BaseIterator):
                 im = self._create_image(word)
 
                 points = self._to_point_sequence(im)
-                ys = [y for x, y in points]
 
-                yield ys, word
+                yield points, word
 
                 counter += 1
 
@@ -320,7 +313,7 @@ class RawIterator(BaseIterator):
 
                 try:
                     stroke_line = StrokeLine(stroke_path)
-                    line_points = stroke_line.heights()
+                    line_points = stroke_line.points()
 
                     yield line_points, true_text
                 except:

@@ -9,6 +9,20 @@ class ProcessingStep:
         raise NotImplementedError
 
 
+class SignalMaker(ProcessingStep):
+    def fit(self, batch):
+        pass
+
+    def process(self, batch):
+        input_seqs = []
+        target_seqs = []
+        for points_line, transcription in batch.get_lines():
+            heights = [y for x, y in points_line]
+            input_seqs.append(heights)
+            target_seqs.append(transcription)
+        return PreLoadedIterator(input_seqs, target_seqs)
+
+
 class SequencePadding(ProcessingStep):
     def __init__(self, input_padding=0, target_padding=' '):
         self._input_len = 0
@@ -69,6 +83,7 @@ class PreProcessor:
         self._add_steps()
 
     def _add_steps(self):
+        self._steps.append(SignalMaker())
         self._steps.append(SequencePadding())
         self._steps.append(PrincipalComponentAnalysis())
         self._steps.append(Normalization())
