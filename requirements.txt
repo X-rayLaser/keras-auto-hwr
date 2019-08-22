@@ -3,3 +3,4 @@ tensorflow<2.0
 Keras
 Pillow
 scikit-image
+nltk

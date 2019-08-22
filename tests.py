@@ -12,10 +12,10 @@ for serrie, trans in it.get_lines():
     for i in range(1, len(serrie), 2):
         ys.append(serrie[i])
 
-    a = np.array(xs)
-    d = a[1:] - a[:-1]
+    a = np.array(ys)
+    d = a - a.mean()
 
-    print(np.std(xs), np.mean(xs))
-    print(np.std(d), np.mean(d), np.sum(d))
+    print(np.std(ys), np.mean(ys))
+    print(np.std(d), np.mean(d), np.sum(d), np.max(a) - np.min(a))
 
     break

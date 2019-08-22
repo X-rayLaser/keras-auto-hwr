@@ -1,9 +1,10 @@
 import xml.etree.ElementTree as ET
 from PIL.ImageDraw import ImageDraw
-from PIL import Image
+from PIL import Image, ImageFont
 import numpy as np
 import os
 import random
+from keras.preprocessing.image import array_to_img, img_to_array
 
 
 class CharacterTable:
@@ -123,6 +124,14 @@ class StrokeLine:
 
         return v
 
+    def heights(self):
+        v = []
+
+        for x, y, prev in self.points_generator():
+            v.append(y)
+
+        return v
+
     def to_image(self):
         a = np.zeros((self._height, self._width), dtype=np.uint8)
 
@@ -199,6 +208,77 @@ class BaseIterator:
         raise NotImplementedError
 
 
+class SyntheticIterator(BaseIterator):
+    def __init__(self, num_lines):
+        self._num_lines = num_lines
+
+    def _create_image(self, text):
+        fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', 40)
+
+        h = 40
+        w = int(round(2/3 * h * len(text)))
+        a = np.zeros((h, w), dtype=np.uint8)
+
+        im = Image.fromarray(a, mode='L')
+
+        canvas = ImageDraw(im, mode='L')
+        canvas.text((0, 0), text, fill=255, font=fnt)
+
+        return im
+
+    def _to_point_sequence(self, image):
+        a = img_to_array(image)
+
+        h, w, _ = a.shape
+        a = a.reshape(h, w)
+
+        dummy = np.arange(w)
+
+        index_tuples = []
+        for i, row in enumerate(a):
+            columns = dummy[row > 0]
+            for col in columns:
+                index_tuples.append((col, i))
+
+        return sorted(index_tuples, key=lambda t: (t[0], t[1]))
+
+    def _points_to_image(self, points):
+        height = max([y for x, y in points]) + 1
+        width = max([x for x, y in points]) + 1
+
+        a = np.zeros((height, width), dtype=np.uint8)
+
+        cols = [x for x, y in points]
+        rows = [y for x, y in points]
+        a[rows, cols] = 255
+
+        return array_to_img(a.reshape((height, width, 1)))
+
+    def get_lines(self):
+
+        words = ['world', 'travel', 'book', 'ticket', 'take', 'word', 'titan']
+
+        counter = 0
+        while True:
+            random.shuffle(words)
+
+            for word in words:
+                im = self._create_image(word)
+
+                points = self._to_point_sequence(im)
+                ys = [y for x, y in points]
+
+                yield ys, word
+
+                counter += 1
+
+                if counter >= self._num_lines:
+                    return
+
+    def __len__(self):
+        return self._num_lines
+
+
 class RawIterator(BaseIterator):
     def __init__(self, data_root):
         self._root = data_root
@@ -238,7 +318,8 @@ class RawIterator(BaseIterator):
 
                 try:
                     stroke_line = StrokeLine(stroke_path)
-                    line_points = stroke_line.points()
+                    line_points = stroke_line.heights()
+
                     yield line_points, true_text
                 except:
                     import traceback
@@ -405,8 +486,11 @@ class DataFactory:
         self._char_table = char_table
         self._splitter = DataSplitter(it)
 
+    def _get_iterator(self, data_root, num_examples):
+        return RandomOrderIterator(data_root)
+
     def _preload(self, data_root, num_examples):
-        rnd_iterator = RandomOrderIterator(data_root)
+        rnd_iterator = self._get_iterator(data_root, num_examples)
 
         hand_writings = []
         transcriptions = []
@@ -429,3 +513,8 @@ class DataFactory:
     def test_generator(self):
         return DataSetGenerator(self._splitter.test_data(),
                                 self._char_table)
+
+
+class SyntheticFactory(DataFactory):
+    def _get_iterator(self, data_root, num_examples):
+        return SyntheticIterator(num_examples)

@@ -4,11 +4,11 @@ import os
 from keras.utils import to_categorical
 from keras.models import load_model, Sequential
 from keras.models import Model
-from keras.layers import SimpleRNN, TimeDistributed, Dense, Input, Conv2D, Flatten, MaxPool2D, BatchNormalization, GRU
+from keras.layers import SimpleRNN, TimeDistributed, Dense, Input, Conv1D, Flatten, MaxPool1D, BatchNormalization, GRU, Reshape
 
 
 class SequenceToSequenceTrainer:
-    def __init__(self, char_table, encoding_size=16):
+    def __init__(self, char_table, encoding_size=128):
         self._char_table = char_table
         self._encoding_size = encoding_size
 
@@ -26,10 +26,19 @@ class SequenceToSequenceTrainer:
     def encoder_model(self):
         encoder_inputs = Input(shape=(None, 1))
 
-        rnn = GRU(units=self._encoding_size, return_state=True)
+        rnn = SimpleRNN(units=self._encoding_size, return_state=True)
 
         x = encoder_inputs
-        x = BatchNormalization()(x)
+        #x = BatchNormalization()(x)
+        x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
+        x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPool1D()(x)
+        x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPool1D()(x)
+        x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
+        #x = Flatten()(x)
+        x = Reshape(target_shape=(-1, 1))(x)
+
         x, encoder_state = rnn(x)
 
         return Model(encoder_inputs, encoder_state)
@@ -84,7 +93,7 @@ class ImageToSequencePredictor:
         return self._char_table
 
     def predict(self, hand_writing):
-        hand_writing = hand_writing.reshape(-1, hand_writing.shape[1], 1)
+        hand_writing = hand_writing.reshape(1, hand_writing.shape[0], 1)
         state = self._encoder.predict(hand_writing)
 
         char_table = self._char_table
