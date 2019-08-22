@@ -82,6 +82,54 @@ class SequenceToSequenceTrainer:
                                         self._char_table)
 
 
+class BeamCandidate:
+    def __init__(self, full_sequence, character, likelihood, state):
+        self.full_sequence = full_sequence
+        self.character = character
+        self.likelihood = likelihood
+        self.state = state
+
+    def branch_off(self, character, likelihood, state):
+        seq = self.full_sequence + character
+        return BeamCandidate(seq, character, likelihood, state)
+
+
+def beam_search(candidates, decoder, char_table, beam=3, max_seq=150):
+    pmfs = []
+    states = []
+
+    for candidate in candidates:
+        index = char_table.encode(candidate.character)
+        v = np.zeros((1, 1, len(char_table)))
+        v[0, 0, index] = 1
+        prob, next_state = decoder.predict([v, candidate.state])
+
+        next_p = prob[0][-1]
+        pmfs.append(next_p * candidate.likelihood)
+        states.append(next_state)
+
+    a = np.array(pmfs)
+
+    next_candidates = []
+
+    while len(next_candidates) < beam:
+        candidate_index = np.argmax(np.max(a, axis=1)).squeeze()
+        class_index = np.argmax(a[candidate_index])
+        max_p = np.max(a)
+        a[candidate_index, class_index] = 0
+
+        char = char_table.decode(class_index)
+        candidate = candidates[candidate_index]
+
+        new_candidate = candidate.branch_off(char, max_p, states[candidate_index])
+        next_candidates.append(new_candidate)
+
+        if new_candidate.character == char_table.sentinel or len(new_candidate.full_sequence) > max_seq:
+            return new_candidate.full_sequence[1:]
+
+    return beam_search(next_candidates, decoder, char_table)
+
+
 class ImageToSequencePredictor:
     def __init__(self, encoder, decoder, char_table):
         self._encoder = encoder
@@ -99,24 +147,6 @@ class ImageToSequencePredictor:
         char_table = self._char_table
         ch = char_table.start
 
-        digitstr = ch
-
-        count = 0
-        while ch != char_table.sentinel:
-            ch = digitstr[-1]
-            index = char_table.encode(ch)
-
-            v = np.zeros((1, 1, len(char_table)))
-            v[0, 0, index] = 1
-
-            probs, state = self._decoder.predict([v, state])
-
-            cls = np.argmax(probs[0][-1])
-            ch = char_table.decode(cls)
-            digitstr += ch
-
-            count += 1
-            if count >= 150:
-                break
-
-        return digitstr[1:]
+        candidates = [BeamCandidate(full_sequence=ch, character=ch,
+                                    likelihood=1, state=state)]
+        return beam_search(candidates, decoder=self._decoder, char_table=self._char_table)
