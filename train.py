@@ -7,8 +7,8 @@ def train(data_root, max_examples, batch_size, epochs):
     charset = ''.join([chr(i) for i in range(32, 128)])
     char_table = CharacterTable(charset)
 
-    factory = SyntheticFactory(data_root, char_table,
-                               num_examples=max_examples)
+    factory = DataFactory(data_root, char_table,
+                          num_examples=max_examples)
 
     train_gen = factory.training_generator()
     val_gen = factory.validation_generator()

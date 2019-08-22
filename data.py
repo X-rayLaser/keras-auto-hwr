@@ -5,6 +5,8 @@ import numpy as np
 import os
 import random
 from keras.preprocessing.image import array_to_img, img_to_array
+from keras.preprocessing.sequence import pad_sequences
+from keras.utils import to_categorical
 
 
 class CharacterTable:
@@ -428,28 +430,19 @@ class DataSetGenerator:
         return (x - x.mean(axis=0)) / np.std(x, axis=0)
 
     def prepare_batch(self, hand_writings, transcriptions):
-        from keras.preprocessing.sequence import pad_sequences
-        from keras.utils import to_categorical
+        x = np.array(hand_writings)
 
-        if len(hand_writings) == 1:
-            max_len = len(hand_writings[0])
-        else:
-            max_len = max([len(line) for line in hand_writings])
-
-        x = pad_sequences(hand_writings, maxlen=max_len, padding='post', value=0)
-
-        #x_norm = self.normalize(x).reshape(-1, x.shape[1], 1)
-        x_norm = x.reshape(-1, x.shape[1], 1)
+        x_norm = x.reshape((-1, x.shape[1], 1))
 
         char_table = self._char_table
         seqs = []
+
         for tok in transcriptions:
             s = char_table.start + tok + char_table.sentinel
             encoded = [char_table.encode(ch) for ch in s]
             seqs.append(encoded)
 
-        padded_seqs = pad_sequences(seqs, dtype=object, padding='post',
-                                    value=char_table.encode(char_table.sentinel))
+        padded_seqs = np.array(seqs)
 
         y = to_categorical(padded_seqs, num_classes=len(char_table))
         y_in = y[:, :-1, :]
@@ -486,6 +479,17 @@ class DataFactory:
         self._char_table = char_table
         self._splitter = DataSplitter(it)
 
+        train_iter = self._splitter.train_data()
+
+        from preprocessing import PreProcessor
+
+        preprocessor = PreProcessor()
+        preprocessor.fit(train_iter)
+
+        self._train_iter = preprocessor.process(train_iter)
+        self._val_iter = preprocessor.process(self._splitter.validation_data())
+        self._test_iter = preprocessor.process(self._splitter.test_data())
+
     def _get_iterator(self, data_root, num_examples):
         return RandomOrderIterator(data_root)
 
@@ -504,14 +508,14 @@ class DataFactory:
         return PreLoadedIterator(hand_writings, transcriptions)
 
     def training_generator(self):
-        return DataSetGenerator(self._splitter.train_data(), self._char_table)
+        return DataSetGenerator(self._train_iter, self._char_table)
 
     def validation_generator(self):
-        return DataSetGenerator(self._splitter.validation_data(),
+        return DataSetGenerator(self._val_iter,
                                 self._char_table)
 
     def test_generator(self):
-        return DataSetGenerator(self._splitter.test_data(),
+        return DataSetGenerator(self._test_iter,
                                 self._char_table)
 
 
