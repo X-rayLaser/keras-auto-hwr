@@ -65,8 +65,15 @@ class CharacterTable:
         return len(self._char_to_index)
 
 
+class StrokesNotFoundException(Exception):
+    pass
+
+
 class StrokeLine:
     def __init__(self, xml_path):
+        if not os.path.isfile(xml_path):
+            raise StrokesNotFoundException()
+
         tree = ET.parse(xml_path)
         root = tree.getroot()
 
@@ -144,15 +151,8 @@ class StrokeLine:
 
 class Transcription:
     def __init__(self, path):
-
-        try:
-            tree = ET.parse(path)
-            root = tree.getroot()
-        except:
-            print('INTERESTING ERROR')
-            import traceback
-            traceback.print_exc()
-            raise Exception()
+        tree = ET.parse(path)
+        root = tree.getroot()
 
         transcription_tag = list(root.iterfind('Transcription'))
         if len(transcription_tag) == 0:
@@ -289,36 +289,44 @@ class RawIterator(BaseIterator):
                     transcription_path = os.path.join(path2, transcription_file)
                     yield transcription_path
 
-    def get_lines(self):
-        strokes_root = os.path.join(self._root, 'lineStrokes-all', 'lineStrokes')
+    def get_strokes_path(self, strokes_root, file_id):
+        path_components = file_id.split('-')
+        if path_components[1][-1].isalpha():
+            subfolder = path_components[0] + '-' + path_components[1][:-1]
+        else:
+            subfolder = path_components[0] + '-' + path_components[1]
 
+        stroke_path = os.path.join(
+            strokes_root, path_components[0],
+            subfolder,
+            file_id + '.xml'
+        )
+
+        return stroke_path
+
+    def get_transcriptions(self):
         for transcription_path in self.transcription_paths():
             try:
                 transcription = Transcription(transcription_path)
-            except:
+                yield transcription
+            except MissingTranscriptionException:
                 continue
 
-            for file_id, true_text in transcription.text_lines():
-                path_components = file_id.split('-')
-                if path_components[1][-1].isalpha():
-                    subfolder = path_components[0] + '-' + path_components[1][:-1]
-                else:
-                    subfolder = path_components[0] + '-' + path_components[1]
+    def get_lines(self):
+        strokes_root = os.path.join(self._root, 'lineStrokes-all', 'lineStrokes')
 
-                stroke_path = os.path.join(
-                    strokes_root, path_components[0],
-                    subfolder,
-                    file_id + '.xml'
-                )
+        for transcription in self.get_transcriptions():
+            for file_id, true_text in transcription.text_lines():
+                stroke_path = self.get_strokes_path(strokes_root, file_id)
 
                 try:
                     stroke_line = StrokeLine(stroke_path)
-                    line_points = stroke_line.points()
+                except StrokesNotFoundException:
+                    continue
 
-                    yield line_points, true_text
-                except:
-                    import traceback
-                    traceback.print_exc()
+                line_points = stroke_line.points()
+
+                yield line_points, true_text
 
     def __len__(self):
         counter = 0
@@ -418,9 +426,6 @@ class DataSetGenerator:
     def __init__(self, lines_iterator, char_table):
         self._char_table = char_table
         self._iter = lines_iterator
-
-    def normalize(self, x):
-        return (x - x.mean(axis=0)) / np.std(x, axis=0)
 
     def prepare_batch(self, hand_writings, transcriptions):
         x = np.array(hand_writings)

@@ -1,4 +1,5 @@
 from data import PreLoadedIterator
+import numpy as np
 
 
 class ProcessingStep:
@@ -52,6 +53,9 @@ class SequencePadding(ProcessingStep):
         while len(input_seq) < self._input_len:
             input_seq.append(self._input_pad)
 
+        if len(input_seq) > self._input_len:
+            input_seq = input_seq[:self._input_len]
+
         return input_seq
 
     def _pad_target(self, target_seq):
@@ -70,11 +74,35 @@ class PrincipalComponentAnalysis(ProcessingStep):
 
 
 class Normalization(ProcessingStep):
+    def __init__(self):
+        self._mu = None
+        self._std = None
+
     def fit(self, batch):
-        pass
+
+        hand_writings = []
+        for points, transcription in batch.get_lines():
+            hand_writings.append(points)
+
+        self._mu = np.mean(hand_writings, axis=0)
+        self._std = np.std(hand_writings, axis=0)
+
+    def remove_constant_columns(self, a, epsilon=0.0001):
+        all_column_indices = np.arange(len(a.shape[1]))
+        column_indices = all_column_indices[self._std > epsilon]
+        return a[:, column_indices]
 
     def process(self, batch):
-        return batch
+        hand_writings = []
+        transcriptions = []
+        for points, transcription in batch.get_lines():
+            hand_writings.append(points)
+            transcriptions.append(transcription)
+
+        epsilon = 0.001
+        a = (np.array(hand_writings) - self._mu) / (self._std + epsilon)
+
+        return PreLoadedIterator(a.tolist(), transcriptions)
 
 
 class PreProcessor:

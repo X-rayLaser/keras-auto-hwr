@@ -29,14 +29,12 @@ class SequenceToSequenceTrainer:
         rnn = SimpleRNN(units=self._encoding_size, return_state=True)
 
         x = encoder_inputs
-        #x = BatchNormalization()(x)
         x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D()(x)
         x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D()(x)
         x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
-        #x = Flatten()(x)
         x = Reshape(target_shape=(-1, 1))(x)
 
         x, encoder_state = rnn(x)
@@ -143,6 +141,7 @@ class ImageToSequencePredictor:
     def predict(self, hand_writing):
         hand_writing = hand_writing.reshape(1, hand_writing.shape[0], 1)
         state = self._encoder.predict(hand_writing)
+        print(state)
 
         char_table = self._char_table
         ch = char_table.start
