@@ -506,8 +506,8 @@ class DataSetGenerator:
 
 
 class DataFactory:
-    def __init__(self, data_root, char_table, num_examples=2000):
-        it = self._preload(data_root, num_examples)
+    def __init__(self, data_source, char_table, num_examples=2000):
+        it = self._preload(data_source, num_examples)
         self._char_table = char_table
         self._splitter = DataSplitter(it)
 
@@ -515,22 +515,17 @@ class DataFactory:
 
         from preprocessing import PreProcessor
 
-        preprocessor = PreProcessor()
+        preprocessor = PreProcessor(self._char_table)
         preprocessor.fit(train_iter)
 
         self._train_iter = preprocessor.process(train_iter)
         self._val_iter = preprocessor.process(self._splitter.validation_data())
         self._test_iter = preprocessor.process(self._splitter.test_data())
 
-    def _get_iterator(self, data_root, num_examples):
-        return RandomOrderIterator(data_root)
-
-    def _preload(self, data_root, num_examples):
-        rnd_iterator = self._get_iterator(data_root, num_examples)
-
+    def _preload(self, data_source, num_examples):
         hand_writings = []
         transcriptions = []
-        for i, (points, t) in enumerate(rnd_iterator.get_lines()):
+        for i, (points, t) in enumerate(data_source.get_lines()):
             if i > num_examples:
                 break
 
@@ -549,8 +544,3 @@ class DataFactory:
     def test_generator(self):
         return DataSetGenerator(self._test_iter,
                                 self._char_table)
-
-
-class SyntheticFactory(DataFactory):
-    def _get_iterator(self, data_root, num_examples):
-        return SyntheticIterator(num_examples)

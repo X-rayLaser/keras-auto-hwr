@@ -8,11 +8,12 @@ from keras.layers import SimpleRNN, TimeDistributed, Dense, Input, Conv1D, Flatt
 
 
 class SequenceToSequenceTrainer:
-    def __init__(self, char_table, encoding_size=128):
+    def __init__(self, char_table, encoding_size=256):
         self._char_table = char_table
         self._encoding_size = encoding_size
 
         self._encoder = self.encoder_model()
+        self._before = self._encoder.get_weights()
         self._decoder = self.decoder_model()
 
         encoder_inputs = self._encoder.input
@@ -30,6 +31,7 @@ class SequenceToSequenceTrainer:
 
         x = encoder_inputs
         x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPool1D()(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D()(x)
         x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
@@ -69,11 +71,14 @@ class SequenceToSequenceTrainer:
         self._decoder.load_weights(os.path.join(path, 'decoder.h5'))
 
     def fit_generator(self, *args, **kwargs):
-        from keras.optimizers import Adam
-        self._model.compile(optimizer='adam', loss='categorical_crossentropy',
+        from keras.optimizers import Adam, SGD, RMSprop
+        self._model.compile(optimizer=RMSprop(lr=0.0005), loss='categorical_crossentropy',
                             metrics=['accuracy'])
         self._model.summary()
         self._model.fit_generator(*args, **kwargs)
+        for i in range(len(self._before)):
+            dif = self._before[i] - self._encoder.get_weights()[i]
+            print('difference', dif.mean(), dif.std())
 
     def get_inference_model(self):
         return ImageToSequencePredictor(self._encoder, self._decoder,
@@ -134,6 +139,9 @@ class ImageToSequencePredictor:
         self._decoder = decoder
         self._char_table = char_table
 
+        self._prev_state = None
+        self._prev_hwr = None
+
     @property
     def char_table(self):
         return self._char_table
@@ -141,6 +149,16 @@ class ImageToSequencePredictor:
     def predict(self, hand_writing):
         hand_writing = hand_writing.reshape(1, hand_writing.shape[0], 1)
         state = self._encoder.predict(hand_writing)
+
+        if self._prev_state is not None:
+            st_delta = self._prev_state - state
+            hwr_delta = self._prev_hwr - hand_writing
+            print(np.mean(st_delta), np.std(st_delta))
+            print()
+            print(np.mean(hwr_delta), np.std(hwr_delta))
+
+        self._prev_hwr = hand_writing
+        self._prev_state = state
 
         char_table = self._char_table
         ch = char_table.start

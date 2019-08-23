@@ -106,13 +106,15 @@ class Normalization(ProcessingStep):
 
 
 class PreProcessor:
-    def __init__(self):
+    def __init__(self, char_table):
         self._steps = []
+        self._char_table = char_table
         self._add_steps()
+
 
     def _add_steps(self):
         self._steps.append(SignalMaker())
-        self._steps.append(SequencePadding())
+        self._steps.append(SequencePadding(target_padding=self._char_table.sentinel))
         self._steps.append(PrincipalComponentAnalysis())
         self._steps.append(Normalization())
 

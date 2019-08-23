@@ -1,13 +1,15 @@
-from data import DataFactory, SyntheticFactory, CharacterTable
+from data import DataFactory,CharacterTable
+from sources import CompilationSource
 from models import SequenceToSequenceTrainer
 from estimate import CharacterErrorRate
 
 
-def train(data_root, max_examples, batch_size, epochs):
+def train(data_path, max_examples, batch_size, epochs):
     charset = ''.join([chr(i) for i in range(32, 128)])
     char_table = CharacterTable(charset)
 
-    factory = DataFactory(data_root, char_table,
+    source = CompilationSource(data_path)
+    factory = DataFactory(source, char_table,
                           num_examples=max_examples)
 
     train_gen = factory.training_generator()
@@ -20,7 +22,7 @@ def train(data_root, max_examples, batch_size, epochs):
         steps_per_epoch=int(len(train_gen) / batch_size) + 1,
         validation_data=val_gen.get_examples(batch_size),
         validation_steps=1,
-        epochs=epochs,
+        epochs=epochs
     )
 
     estimator = CharacterErrorRate(trainer.get_inference_model(), num_trials=100)
@@ -32,12 +34,12 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_root', type=str, default='./')
+    parser.add_argument('--data_path', type=str, default='./')
     parser.add_argument('--max_examples', type=int, default=8)
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--epochs', type=int, default=100)
 
     args = parser.parse_args()
 
-    train(args.data_root, args.max_examples, args.batch_size, args.epochs)
+    train(args.data_path, args.max_examples, args.batch_size, args.epochs)
     print('Done!')
