@@ -150,7 +150,7 @@ class StrokeLine:
 
 
 class Transcription:
-    def __init__(self, path):
+    def __init__(self, path, random_order=False):
         tree = ET.parse(path)
         root = tree.getroot()
 
@@ -159,6 +159,28 @@ class Transcription:
             raise MissingTranscriptionException()
 
         self._transcription = transcription_tag[0]
+
+        self._random_order = random_order
+        self._path = path
+        self._lines = None
+
+    def _fetch_lines(self, ):
+        if self._lines is None:
+            self._lines = []
+            for line in self._transcription.iterfind('TextLine'):
+                text = line.attrib['text']
+                file_id = line.attrib['id']
+
+                second_opinion = self.id_from_words(line)
+                if file_id != second_opinion:
+                    print('ATTENTION: id attribute "file_id" on line does not match the one on words: {} vs {}'.format(file_id, second_opinion))
+
+                self._lines.append((second_opinion, text))
+
+            if self._random_order:
+                random.shuffle(self._lines)
+
+        return self._lines
 
     def id_from_words(self, line):
         id_counts = {}
@@ -181,15 +203,8 @@ class Transcription:
         return res
 
     def text_lines(self):
-        for line in self._transcription.iterfind('TextLine'):
-            text = line.attrib['text']
-            file_id = line.attrib['id']
-
-            second_opinion = self.id_from_words(line)
-            if file_id != second_opinion:
-                print('ATTENTION: id attribute "file_id" on line does not match the one on words: {} vs {}'.format(file_id, second_opinion))
-
-            yield second_opinion, text
+        for line in self._fetch_lines():
+            yield line
 
 
 class MissingTranscriptionException(Exception):
@@ -277,6 +292,8 @@ class SyntheticIterator(BaseIterator):
 class RawIterator(BaseIterator):
     def __init__(self, data_root):
         self._root = data_root
+        self._strokes_root = os.path.join(self._root, 'lineStrokes-all',
+                                          'lineStrokes')
 
     def transcription_paths(self):
         labels_root = os.path.join(self._root, 'original-xml-all', 'original')
@@ -289,7 +306,7 @@ class RawIterator(BaseIterator):
                     transcription_path = os.path.join(path2, transcription_file)
                     yield transcription_path
 
-    def get_strokes_path(self, strokes_root, file_id):
+    def get_strokes_path(self, file_id):
         path_components = file_id.split('-')
         if path_components[1][-1].isalpha():
             subfolder = path_components[0] + '-' + path_components[1][:-1]
@@ -297,27 +314,25 @@ class RawIterator(BaseIterator):
             subfolder = path_components[0] + '-' + path_components[1]
 
         stroke_path = os.path.join(
-            strokes_root, path_components[0],
+            self._strokes_root, path_components[0],
             subfolder,
             file_id + '.xml'
         )
 
         return stroke_path
 
-    def get_transcriptions(self):
+    def get_transcriptions(self, random_order=False):
         for transcription_path in self.transcription_paths():
             try:
-                transcription = Transcription(transcription_path)
+                transcription = Transcription(transcription_path, random_order)
                 yield transcription
             except MissingTranscriptionException:
                 continue
 
     def get_lines(self):
-        strokes_root = os.path.join(self._root, 'lineStrokes-all', 'lineStrokes')
-
         for transcription in self.get_transcriptions():
             for file_id, true_text in transcription.text_lines():
-                stroke_path = self.get_strokes_path(strokes_root, file_id)
+                stroke_path = self.get_strokes_path(file_id)
 
                 try:
                     stroke_line = StrokeLine(stroke_path)
@@ -337,29 +352,48 @@ class RawIterator(BaseIterator):
 
 class RandomOrderIterator(RawIterator):
     def transcription_paths(self):
-        labels_root = os.path.join(self._root, 'original-xml-all', 'original')
+        all_paths = []
+        for path in super().transcription_paths():
+            all_paths.append(path)
 
-        dirs = os.listdir(labels_root)
+        random.shuffle(all_paths)
 
-        random.shuffle(dirs)
+        for path in all_paths:
+            yield path
 
-        for d in dirs:
-            dir_path = os.path.join(labels_root, d)
+    def make_generator(self, transcription_path):
+        try:
+            transcription = Transcription(transcription_path, random_order=True)
+            for line in transcription.text_lines():
+                yield line
+        except MissingTranscriptionException:
+            pass
 
-            sub_dirs = os.listdir(dir_path)
+    def get_lines(self):
+        line_iterators = []
 
-            random.shuffle(sub_dirs)
+        for path in self.transcription_paths():
+            line_iterators.append(self.make_generator(path))
 
-            for sub_dir in sub_dirs:
-                sub_dir_path = os.path.join(dir_path, sub_dir)
+        while len(line_iterators) > 0:
+            gen = random.choice(line_iterators)
 
-                transcription_files = os.listdir(sub_dir_path)
+            try:
+                file_id, true_text = next(gen)
+            except StopIteration:
+                line_iterators.remove(gen)
+                continue
 
-                random.shuffle(transcription_files)
+            stroke_path = self.get_strokes_path(file_id)
 
-                for file_name in transcription_files:
-                    transcription_path = os.path.join(sub_dir_path, file_name)
-                    yield transcription_path
+            try:
+                stroke_line = StrokeLine(stroke_path)
+            except StrokesNotFoundException:
+                continue
+
+            line_points = stroke_line.points()
+
+            yield line_points, true_text
 
 
 class PreLoadedIterator(BaseIterator):

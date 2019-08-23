@@ -141,7 +141,6 @@ class ImageToSequencePredictor:
     def predict(self, hand_writing):
         hand_writing = hand_writing.reshape(1, hand_writing.shape[0], 1)
         state = self._encoder.predict(hand_writing)
-        print(state)
 
         char_table = self._char_table
         ch = char_table.start
