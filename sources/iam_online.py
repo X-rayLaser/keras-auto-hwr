@@ -82,6 +82,50 @@ class LinesSource(BaseSource):
         return len(self._source)
 
 
+class WordsSource(BaseSource):
+    def __init__(self, source):
+        self._source = source
+
+    def _distance_deviation(self, strokes):
+        delayed_strokes = strokes[1:]
+
+        distances = []
+        for i in range(len(delayed_strokes)):
+            next_stroke = delayed_strokes[i]
+            stroke = strokes[i]
+            distances.append(next_stroke.horizontal_distance(stroke))
+
+        return np.std(distances)
+
+    def _word_strokes(self, strokes):
+        if len(strokes) == 0:
+            return
+        sd = self._distance_deviation(strokes)
+
+        word_strokes = []
+
+        prev_stroke = strokes[0]
+        word_strokes.append(prev_stroke)
+        for stroke in strokes[1:]:
+            if stroke.horizontal_distance(prev_stroke) > 1.5 * sd:
+                yield word_strokes
+                return
+                word_strokes = []
+            word_strokes.append(stroke)
+            prev_stroke = stroke
+
+    def get_sequences(self):
+        for strokes, transcription in self._source.get_sequences():
+            word_transcriptions = transcription.split(' ')
+
+            for i, word_strokes in enumerate(self._word_strokes(strokes)):
+                if i < len(word_transcriptions):
+                    yield word_strokes, word_transcriptions[i]
+
+    def __len__(self):
+        pass
+
+
 class RandomOrderSource(OnlineSource):
     def transcription_paths(self):
         all_paths = []
@@ -135,6 +179,15 @@ class StrokesNotFoundException(Exception):
 class Stroke:
     def __init__(self, points):
         self.points = points
+
+    def left_most_x(self):
+        return min([x for x, y in self.points])
+
+    def right_most_x(self):
+        return min([x for x, y in self.points])
+
+    def horizontal_distance(self, stroke):
+        return self.left_most_x() - stroke.right_most_x()
 
 
 class StrokeLine:

@@ -3,7 +3,7 @@ from keras.preprocessing.image import array_to_img
 from PIL import Image, ImageDraw
 
 
-def points_to_image(points):
+def points_to_image(points, width=3):
     height = max([y for x, y in points]) + 1
     width = max([x for x, y in points]) + 1
 
@@ -16,7 +16,7 @@ def points_to_image(points):
     prev_point = None
     for x, y in points:
         if prev_point:
-            canvas.line((prev_point, (x, y)), width=12, fill=255)
+            canvas.line((prev_point, (x, y)), width=width, fill=255)
         prev_point = (x, y)
 
     return im

@@ -3,6 +3,9 @@ from keras.utils import to_categorical
 
 from sources.preloaded import PreLoadedSource
 from preprocessing import PreProcessor
+from util import points_to_image
+from urllib.parse import quote
+import os
 
 
 class CharacterTable:
@@ -153,7 +156,8 @@ class DataSetGenerator:
 
 
 class DataFactory:
-    def __init__(self, data_source, char_table, num_examples=2000):
+    def __init__(self, data_source, char_table, num_examples=2000, save_images_path=None):
+        self._save_images_path = save_images_path
         it = self._preload(data_source, num_examples)
         it = self._adapt(it)
         self._char_table = char_table
@@ -168,6 +172,12 @@ class DataFactory:
         self._val_iter = preprocessor.process(self._splitter.validation_data())
         self._test_iter = preprocessor.process(self._splitter.test_data())
 
+    def save_points(self, points, transcription):
+        file_name = '{}.jpg'.format(quote(transcription, safe=' ,.'))
+        path = os.path.join(self._save_images_path, file_name)
+
+        points_to_image(points).save(path)
+
     def _adapt(self, source):
         points_seq = []
         transcriptions = []
@@ -178,6 +188,9 @@ class DataFactory:
 
             points_seq.append(points)
             transcriptions.append(transcription)
+
+            if self._save_images_path:
+                self.save_points(points, transcription)
 
         return PreLoadedSource(points_seq, transcriptions)
 

@@ -24,6 +24,26 @@ class SignalMaker(ProcessingStep):
         return PreLoadedSource(input_seqs, target_seqs)
 
 
+class DeltaSignal(ProcessingStep):
+    def fit(self, batch):
+        pass
+
+    def to_deltas(self, heights):
+        a = np.array(heights)
+        deltas = a[1:] - a[:-1]
+        return deltas.tolist()
+
+    def process(self, batch):
+        input_seqs = []
+        target_seqs = []
+
+        for heights, target_seq in batch.get_sequences():
+            input_seqs.append(self.to_deltas(heights))
+            target_seqs.append(target_seq)
+
+        return PreLoadedSource(input_seqs, target_seqs)
+
+
 class SequencePadding(ProcessingStep):
     def __init__(self, input_padding=0, target_padding=' '):
         self._input_len = 0
@@ -111,9 +131,9 @@ class PreProcessor:
         self._char_table = char_table
         self._add_steps()
 
-
     def _add_steps(self):
         self._steps.append(SignalMaker())
+        self._steps.append(DeltaSignal())
         #self._steps.append(SequencePadding(target_padding=self._char_table.sentinel))
         #self._steps.append(PrincipalComponentAnalysis())
         #self._steps.append(Normalization())

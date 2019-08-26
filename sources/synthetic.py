@@ -6,9 +6,10 @@ from PIL.ImageDraw import ImageDraw
 from keras.preprocessing.image import img_to_array, array_to_img
 
 from sources import BaseSource
+from sources.iam_online import Stroke
 
 
-class SyntheticIterator(BaseSource):
+class SyntheticSource(BaseSource):
     def __init__(self, num_lines):
         self._num_lines = num_lines
 
@@ -55,19 +56,26 @@ class SyntheticIterator(BaseSource):
         return array_to_img(a.reshape((height, width, 1)))
 
     def get_sequences(self):
+        from nltk.corpus import words
+        from random import sample
+        #words = ['world', 'travel', 'book', 'ticket', 'take', 'word', 'titan']
 
-        words = ['world', 'travel', 'book', 'ticket', 'take', 'word', 'titan']
-
+        word_list = sample(words.words(), self._num_lines)
         counter = 0
         while True:
-            random.shuffle(words)
+            random.shuffle(word_list)
 
-            for word in words:
+            for word in word_list:
                 im = self._create_image(word)
 
                 points = self._to_point_sequence(im)
 
-                yield points, word
+                strokes = []
+                for x, y in points:
+                    strokes.append(Stroke([(x, y)]))
+
+                #self._points_to_image(points).save('./temp/{}.jpg'.format(word))
+                yield strokes, word
 
                 counter += 1
 

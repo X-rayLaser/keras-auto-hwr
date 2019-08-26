@@ -1,6 +1,7 @@
 from data import DataFactory, CharacterTable
 from sources.compiled import CompilationSource
-from sources.iam_online import OnlineSource, LinesSource
+from sources.iam_online import OnlineSource, LinesSource, WordsSource
+from sources.synthetic import SyntheticSource
 from models import SequenceToSequenceTrainer
 from estimate import CharacterErrorRate
 
@@ -11,6 +12,7 @@ def train(data_path, max_examples, lrate, epochs):
 
     #source = CompilationSource(data_path)
     source = LinesSource(OnlineSource(data_path))
+    #source = SyntheticSource(num_lines=100)
 
     factory = DataFactory(source, char_table,
                           num_examples=max_examples)
