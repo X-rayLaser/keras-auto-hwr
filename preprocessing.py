@@ -1,4 +1,4 @@
-from data import PreLoadedIterator
+from sources.preloaded import PreLoadedSource
 import numpy as np
 
 
@@ -17,11 +17,11 @@ class SignalMaker(ProcessingStep):
     def process(self, batch):
         input_seqs = []
         target_seqs = []
-        for points_line, transcription in batch.get_lines():
+        for points_line, transcription in batch.get_sequences():
             heights = [y for x, y in points_line]
             input_seqs.append(heights)
             target_seqs.append(transcription)
-        return PreLoadedIterator(input_seqs, target_seqs)
+        return PreLoadedSource(input_seqs, target_seqs)
 
 
 class SequencePadding(ProcessingStep):
@@ -32,14 +32,14 @@ class SequencePadding(ProcessingStep):
         self._target_pad = target_padding
 
     def fit(self, batch):
-        for handwriting, transcription in batch.get_lines():
+        for handwriting, transcription in batch.get_sequences():
             self._input_len = max(len(handwriting), self._input_len)
             self._output_len = max(len(transcription), self._output_len)
 
     def process(self, batch):
         hand_writings = []
         transcriptions = []
-        for hand_writing, transcription in batch.get_lines():
+        for hand_writing, transcription in batch.get_sequences():
             hwr = list(hand_writing)
             hwr = self._pad_input(hwr)
             transcription = self._pad_target(transcription)
@@ -47,7 +47,7 @@ class SequencePadding(ProcessingStep):
             hand_writings.append(hwr)
             transcriptions.append(transcription)
 
-        return PreLoadedIterator(hand_writings, transcriptions)
+        return PreLoadedSource(hand_writings, transcriptions)
 
     def _pad_input(self, input_seq):
         while len(input_seq) < self._input_len:
@@ -81,7 +81,7 @@ class Normalization(ProcessingStep):
     def fit(self, batch):
 
         hand_writings = []
-        for points, transcription in batch.get_lines():
+        for points, transcription in batch.get_sequences():
             hand_writings.append(points)
 
         self._mu = np.mean(hand_writings, axis=0)
@@ -95,14 +95,14 @@ class Normalization(ProcessingStep):
     def process(self, batch):
         hand_writings = []
         transcriptions = []
-        for points, transcription in batch.get_lines():
+        for points, transcription in batch.get_sequences():
             hand_writings.append(points)
             transcriptions.append(transcription)
 
         epsilon = 0.001
         a = (np.array(hand_writings) - self._mu) / (self._std + epsilon)
 
-        return PreLoadedIterator(a.tolist(), transcriptions)
+        return PreLoadedSource(a.tolist(), transcriptions)
 
 
 class PreProcessor:

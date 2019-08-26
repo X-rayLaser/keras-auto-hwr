@@ -1,4 +1,4 @@
-from data import RandomOrderIterator
+from sources.iam_online import RandomOrderIterator
 import json
 
 
@@ -7,7 +7,7 @@ def compile_data(data_path, destination, num_lines):
 
     hand_writings = []
     transcriptions = []
-    for points, transcription in it.get_lines():
+    for points, transcription in it.get_sequences():
         hand_writings.append(points)
         transcriptions.append(transcription)
 

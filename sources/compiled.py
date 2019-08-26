@@ -1,7 +1,9 @@
 import json
 
+from sources import BaseSource
 
-class CompilationSource:
+
+class CompilationSource(BaseSource):
     def __init__(self, path):
         self._path = path
 
@@ -12,7 +14,7 @@ class CompilationSource:
         self._hand_writings = d['hand_writings']
         self._transcriptions = d['transcriptions']
 
-    def get_lines(self):
+    def get_sequences(self):
 
         for i in range(len(self._transcriptions)):
             yield self._hand_writings[i], self._transcriptions[i]

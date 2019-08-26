@@ -1,5 +1,6 @@
-from data import DataFactory,CharacterTable
-from sources import CompilationSource
+from data import DataFactory, CharacterTable
+from sources.compiled import CompilationSource
+from sources.iam_online import OnlineSource, LinesSource
 from models import SequenceToSequenceTrainer
 from estimate import CharacterErrorRate
 
@@ -8,7 +9,9 @@ def train(data_path, max_examples, lrate, epochs):
     charset = ''.join([chr(i) for i in range(32, 128)])
     char_table = CharacterTable(charset)
 
-    source = CompilationSource(data_path)
+    #source = CompilationSource(data_path)
+    source = LinesSource(OnlineSource(data_path))
+
     factory = DataFactory(source, char_table,
                           num_examples=max_examples)
 
