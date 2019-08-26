@@ -4,3 +4,4 @@ compiled/
 *.pyc
 \.idea/
 tests.py
+*.zip

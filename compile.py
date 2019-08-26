@@ -11,7 +11,11 @@ def compile_data(data_path, destination, num_lines):
         hand_writings.append(points)
         transcriptions.append(transcription)
 
-        if len(transcriptions) > num_lines:
+        fetched = len(transcriptions)
+        if fetched % 500 == 0:
+            print('Fetched {} examples'.format(fetched))
+
+        if fetched > num_lines:
             break
 
     d = {

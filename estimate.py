@@ -32,11 +32,14 @@ class CharacterErrorRate(PerformanceMetric):
         characters_total = 0
         errors_total = 0
 
-        for (hand_writings, _), ys in test_data.get_examples(batch_size=self._num_trials):
+        count = 0
 
-            count = 0
+        for (hand_writings, _), ys in test_data.get_examples(batch_size=1):
+            count += 1
+            if count > self._num_trials:
+                return errors_total / characters_total
+
             for i in range(len(ys)):
-                count += 1
                 classes = [(np.argmax(v)) for v in ys[i]]
                 ground_true = ''.join([self._inference_model.char_table.decode(c) for c in classes]).strip()
 
@@ -53,4 +56,3 @@ class CharacterErrorRate(PerformanceMetric):
                 errors_total += errors
 
                 print(ground_true, '->', prediction)
-            return errors_total / characters_total

@@ -114,9 +114,9 @@ class PreProcessor:
 
     def _add_steps(self):
         self._steps.append(SignalMaker())
-        self._steps.append(SequencePadding(target_padding=self._char_table.sentinel))
-        self._steps.append(PrincipalComponentAnalysis())
-        self._steps.append(Normalization())
+        #self._steps.append(SequencePadding(target_padding=self._char_table.sentinel))
+        #self._steps.append(PrincipalComponentAnalysis())
+        #self._steps.append(Normalization())
 
     def fit(self, batch):
         for step in self._steps:
