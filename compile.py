@@ -7,8 +7,12 @@ def compile_data(data_path, destination, num_lines):
 
     hand_writings = []
     transcriptions = []
-    for points, transcription in it.get_sequences():
-        hand_writings.append(points)
+    for strokes, transcription in it.get_sequences():
+        strokes_list = []
+        for stroke in strokes:
+            strokes_list.append(stroke.points)
+
+        hand_writings.append(strokes_list)
         transcriptions.append(transcription)
 
         fetched = len(transcriptions)

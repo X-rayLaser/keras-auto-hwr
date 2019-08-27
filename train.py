@@ -10,8 +10,8 @@ def train(data_path, max_examples, lrate, epochs):
     charset = ''.join([chr(i) for i in range(32, 128)])
     char_table = CharacterTable(charset)
 
-    #source = CompilationSource(data_path)
-    source = LinesSource(OnlineSource(data_path))
+    source = CompilationSource(data_path)
+    #source = LinesSource(OnlineSource(data_path))
     #source = SyntheticSource(num_lines=100)
 
     factory = DataFactory(source, char_table,
