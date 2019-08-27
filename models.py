@@ -105,40 +105,71 @@ class BeamCandidate:
         return BeamCandidate(seq, character, likelihood, state)
 
 
-def beam_search(candidates, decoder, char_table, beam=3, max_seq=150):
-    pmfs = []
-    states = []
+class BeamSearch:
+    def __init__(self, initial_state, char_table, decoder, beam_size=3, max_len=150):
+        self._initial_state = initial_state
+        self._char_table = char_table
+        self._decoder = decoder
+        self._beam_size = beam_size
+        self._max_len = 150
 
-    for candidate in candidates:
-        index = char_table.encode(candidate.character)
-        v = np.zeros((1, 1, len(char_table)))
+    def generate_sequence(self):
+        char_table = self._char_table
+        ch = char_table.start
+
+        candidates = [BeamCandidate(full_sequence=ch, character=ch,
+                                    likelihood=1, state=self._initial_state)]
+
+        return self._beam_search(candidates)
+
+    def _check_candidate(self, candidate):
+        index = self._char_table.encode(candidate.character)
+        v = np.zeros((1, 1, len(self._char_table)))
         v[0, 0, index] = 1
-        prob, next_state = decoder.predict([v, candidate.state])
+        prob, next_state = self._decoder.predict([v, candidate.state])
 
         next_p = prob[0][-1]
-        pmfs.append(next_p * candidate.likelihood)
-        states.append(next_state)
 
-    a = np.array(pmfs)
+        joint_pmf = next_p * candidate.likelihood
 
-    next_candidates = []
+        return joint_pmf, next_state
 
-    while len(next_candidates) < beam:
-        candidate_index = np.argmax(np.max(a, axis=1)).squeeze()
-        class_index = np.argmax(a[candidate_index])
-        max_p = np.max(a)
-        a[candidate_index, class_index] = 0
+    def _next_candidates(self, candidates, joint_pmfs, states):
+        a = np.array(joint_pmfs)
 
-        char = char_table.decode(class_index)
-        candidate = candidates[candidate_index]
+        for _ in range(self._beam_size):
+            candidate_index = np.argmax(np.max(a, axis=1)).squeeze()
+            class_index = np.argmax(a[candidate_index])
+            max_p = np.max(a)
+            a[candidate_index, class_index] = 0
 
-        new_candidate = candidate.branch_off(char, max_p, states[candidate_index])
-        next_candidates.append(new_candidate)
+            char = self._char_table.decode(class_index)
+            candidate = candidates[candidate_index]
 
-        if new_candidate.character == char_table.sentinel or len(new_candidate.full_sequence) > max_seq:
-            return new_candidate.full_sequence[1:]
+            yield candidate.branch_off(char, max_p, states[candidate_index])
 
-    return beam_search(next_candidates, decoder, char_table)
+    def _end_of_sequence(self, best_candidate):
+        return best_candidate.character == self._char_table.sentinel or \
+               len(best_candidate.full_sequence) > self._max_len
+
+    def _beam_search(self, candidates):
+        joint_pmfs = []
+        states = []
+
+        for candidate in candidates:
+            joint_pmf, next_state = self._check_candidate(candidate)
+            joint_pmfs.append(joint_pmf)
+            states.append(next_state)
+
+        next_candidates = []
+        for next_one in self._next_candidates(candidates, joint_pmfs, states):
+            next_candidates.append(next_one)
+
+        best_one = next_candidates[0]
+        if self._end_of_sequence(best_one):
+            return best_one.full_sequence[1:]
+
+        return self._beam_search(next_candidates)
 
 
 class ImageToSequencePredictor:
@@ -161,9 +192,7 @@ class ImageToSequencePredictor:
         self._prev_hwr = hand_writing
         self._prev_state = state
 
-        char_table = self._char_table
-        ch = char_table.start
-
-        candidates = [BeamCandidate(full_sequence=ch, character=ch,
-                                    likelihood=1, state=state)]
-        return beam_search(candidates, decoder=self._decoder, char_table=self._char_table)
+        beam_search = BeamSearch(initial_state=state,
+                                 char_table=self._char_table,
+                                 decoder=self._decoder)
+        return beam_search.generate_sequence()

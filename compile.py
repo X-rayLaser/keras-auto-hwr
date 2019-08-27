@@ -1,9 +1,9 @@
-from sources.iam_online import RandomOrderIterator
+from sources.iam_online import OnlineSource, LinesSource
 import json
 
 
 def compile_data(data_path, destination, num_lines):
-    it = RandomOrderIterator(data_path)
+    it = LinesSource(OnlineSource(data_path))
 
     hand_writings = []
     transcriptions = []
