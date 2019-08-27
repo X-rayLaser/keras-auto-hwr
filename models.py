@@ -4,7 +4,8 @@ import os
 from keras.utils import to_categorical
 from keras.models import load_model, Sequential
 from keras.models import Model
-from keras.layers import SimpleRNN, TimeDistributed, Dense, Input, Conv1D, Flatten, MaxPool1D, BatchNormalization, GRU, Reshape
+from keras.layers import SimpleRNN, TimeDistributed, Dense, Input, Conv1D,\
+    Flatten, MaxPool1D, BatchNormalization, GRU, Reshape, CuDNNGRU, Bidirectional, Concatenate
 
 
 class SequenceToSequenceTrainer:
@@ -27,16 +28,21 @@ class SequenceToSequenceTrainer:
     def encoder_model(self):
         encoder_inputs = Input(shape=(None, 1))
 
-        rnn = SimpleRNN(units=self._encoding_size, return_state=True)
+        rnn = SimpleRNN(units=self._encoding_size // 2, return_state=True)
+        rnn = Bidirectional(rnn)
 
         x = encoder_inputs
         x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D(pool_size=2)(x)
+        x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPool1D(pool_size=2)(x)
+
         x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
         x = Reshape(target_shape=(-1, 1))(x)
 
-        x, encoder_state = rnn(x)
+        states_seq, forward_state, backward_state = rnn(x)
+        encoder_state = Concatenate()([forward_state, backward_state])
 
         return Model(encoder_inputs, encoder_state)
 
@@ -51,6 +57,7 @@ class SequenceToSequenceTrainer:
                         return_sequences=True,
                         return_state=True,
                         name='decoder_first_layer')
+
         densor = TimeDistributed(Dense(units=len(self._char_table),
                                        activation='softmax'))
 
@@ -67,7 +74,7 @@ class SequenceToSequenceTrainer:
         self._encoder.load_weights(os.path.join(path, 'encoder.h5'))
         self._decoder.load_weights(os.path.join(path, 'decoder.h5'))
 
-    def fit_generator(self, lr, gen, *args, **kwargs):
+    def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
 
         from estimate import CharacterErrorRate
         from keras.callbacks import Callback
@@ -77,7 +84,9 @@ class SequenceToSequenceTrainer:
         class MyCallback(Callback):
             def on_epoch_end(self, epoch, logs=None):
                 if epoch % 5 == 0:
-                    estimator.estimate(gen)
+                    estimator.estimate(train_gen)
+                    print()
+                    estimator.estimate(val_gen)
 
         from keras.optimizers import Adam, SGD, RMSprop
         self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',

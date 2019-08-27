@@ -22,16 +22,19 @@ def train(data_path, max_examples, lrate, epochs):
 
     trainer = SequenceToSequenceTrainer(char_table=char_table)
     batch_size = 1
+    validation_steps = 64
     trainer.fit_generator(
         lrate,
         train_gen,
+        val_gen,
         train_gen.get_examples(batch_size=batch_size),
         steps_per_epoch=int(len(train_gen) / batch_size) + 1,
         validation_data=val_gen.get_examples(batch_size),
-        validation_steps=1,
+        validation_steps=validation_steps,
         epochs=epochs)
 
-    estimator = CharacterErrorRate(trainer.get_inference_model(), num_trials=100)
+    estimator = CharacterErrorRate(trainer.get_inference_model(),
+                                   num_trials=validation_steps)
     error_rate = estimator.estimate(train_gen)
 
     print(error_rate)
