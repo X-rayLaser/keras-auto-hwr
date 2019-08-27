@@ -111,14 +111,14 @@ class BeamSearch:
         self._char_table = char_table
         self._decoder = decoder
         self._beam_size = beam_size
-        self._max_len = 150
+        self._max_len = max_len
 
     def generate_sequence(self):
         char_table = self._char_table
         ch = char_table.start
 
         candidates = [BeamCandidate(full_sequence=ch, character=ch,
-                                    likelihood=1, state=self._initial_state)]
+                                    likelihood=0, state=self._initial_state)]
 
         return self._beam_search(candidates)
 
@@ -130,7 +130,7 @@ class BeamSearch:
 
         next_p = prob[0][-1]
 
-        joint_pmf = next_p * candidate.likelihood
+        joint_pmf = np.log(next_p) + candidate.likelihood
 
         return joint_pmf, next_state
 
