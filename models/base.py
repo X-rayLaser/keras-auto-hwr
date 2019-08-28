@@ -10,3 +10,6 @@ class BaseModel:
 
     def get_inference_model(self):
         raise NotImplementedError
+
+    def get_performance_estimator(self, num_trials):
+        raise NotImplementedError

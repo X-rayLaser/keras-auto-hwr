@@ -156,7 +156,7 @@ class DataSetGenerator:
 
 
 class AttentionModelDataGenerator(DataSetGenerator):
-    def __init__(self, lines_iterator, char_table, Tx, Ty, encoder_states=32):
+    def __init__(self, lines_iterator, char_table, Tx, Ty, encoder_states):
         super().__init__(lines_iterator, char_table)
 
         self._Tx = Tx
@@ -291,10 +291,11 @@ class Seq2seqFactory(BaseFactory):
 
 
 class AttentionalSeq2seqFactory(BaseFactory):
-    def __init__(self, Tx, Ty, *args, **kwargs):
+    def __init__(self, Tx, Ty, num_cells, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._Tx = Tx
         self._Ty = Ty
+        self._num_cells = num_cells
 
     def _get_preprocessor(self):
         preprocessor = PreProcessor(self._char_table)
@@ -308,10 +309,11 @@ class AttentionalSeq2seqFactory(BaseFactory):
 
     def create_model(self):
         from models.attention import Seq2SeqWithAttention
-        return Seq2SeqWithAttention(self._char_table, Tx=self._Tx, Ty=self._Ty)
+        return Seq2SeqWithAttention(self._char_table, self._num_cells,
+                                    Tx=self._Tx, Ty=self._Ty)
 
     def _get_generator(self, iterator):
-        return AttentionModelDataGenerator(iterator, self._char_table, self._Tx, self._Ty)
+        return AttentionModelDataGenerator(iterator, self._char_table, self._Tx, self._Ty, self._num_cells)
 
     def training_generator(self):
         return self._get_generator(self._train_iter)

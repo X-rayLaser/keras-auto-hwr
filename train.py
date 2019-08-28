@@ -2,7 +2,7 @@ from data import CharacterTable, Seq2seqFactory, AttentionalSeq2seqFactory
 from sources.compiled import CompilationSource
 from sources.iam_online import OnlineSource, LinesSource, WordsSource
 from sources.synthetic import SyntheticSource
-from estimate import CharacterErrorRate
+from estimate import Seq2seqMetric
 
 
 def train(data_path, max_examples, lrate, epochs):
@@ -13,7 +13,8 @@ def train(data_path, max_examples, lrate, epochs):
     #source = LinesSource(OnlineSource(data_path))
     #source = SyntheticSource(num_lines=100)
 
-    factory = AttentionalSeq2seqFactory(Tx=225, Ty=15, data_source=source,
+    factory = AttentionalSeq2seqFactory(Tx=350, Ty=10, num_cells=128,
+                                        data_source=source,
                                         char_table=char_table,
                                         num_examples=max_examples)
 
@@ -34,8 +35,7 @@ def train(data_path, max_examples, lrate, epochs):
         validation_steps=validation_steps,
         epochs=epochs)
 
-    estimator = CharacterErrorRate(trainer.get_inference_model(),
-                                   num_trials=validation_steps)
+    estimator = trainer.get_performance_estimator(validation_steps)
     error_rate = estimator.estimate(train_gen)
 
     print(error_rate)

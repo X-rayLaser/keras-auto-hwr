@@ -27,7 +27,7 @@ class PerformanceMetric:
         return s.strip()
 
 
-class CharacterErrorRate(PerformanceMetric):
+class Seq2seqMetric(PerformanceMetric):
     def estimate(self, test_data):
         characters_total = 0
         errors_total = 0
@@ -56,3 +56,34 @@ class CharacterErrorRate(PerformanceMetric):
                 errors_total += errors
 
                 print(ground_true, '->', prediction)
+
+
+class AttentionModelMetric(PerformanceMetric):
+    def estimate(self, test_data):
+        characters_total = 0
+        errors_total = 0
+
+        count = 0
+
+        for hand_writings, ys in test_data.get_examples(batch_size=1):
+            count += 1
+            if count > self._num_trials:
+                return errors_total / characters_total
+
+            ys = np.array(ys)[:, 0, :]
+            classes = [(np.argmax(v)) for v in ys]
+            ground_true = ''.join([self._inference_model.char_table.decode(c) for c in classes]).strip()
+
+            try:
+                x = hand_writings[0]
+                prediction = self.predict(x)
+            except:
+                traceback.print_exc()
+                prediction = ''
+
+            characters_total += len(ground_true)
+
+            errors = self.compare(prediction, ground_true)
+            errors_total += errors
+
+            print(ground_true, '->', prediction)

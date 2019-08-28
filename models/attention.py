@@ -1,13 +1,17 @@
 from keras import Input, Model
 from keras.activations import softmax
-from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector, Concatenate, Activation, Dot
+from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector, Concatenate, Activation, Dot, CuDNNGRU
 
 from models import BaseModel
 from keras.optimizers import RMSprop
+import numpy as np
+from estimate import AttentionModelMetric
+from keras.callbacks import Callback
 
 
 class Seq2SeqWithAttention(BaseModel):
-    def __init__(self, char_table, encoding_size=32, Tx=400, Ty=70):
+    def __init__(self, char_table, encoding_size, Tx=400, Ty=70):
+        self.encoding_size = encoding_size
         encoder_inputs = Input(shape=(Tx, 1))
 
         encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True)
@@ -55,7 +59,42 @@ class Seq2SeqWithAttention(BaseModel):
         self._char_table = char_table
 
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
-        callbacks = []
+        estimator = self.get_performance_estimator(8)
+
+        class MyCallback(Callback):
+            def on_epoch_end(self, epoch, logs=None):
+                if epoch % 5 == 0:
+                    estimator.estimate(train_gen)
+                    print()
+                    estimator.estimate(val_gen)
+        callbacks = [MyCallback()]
         self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
                             metrics=['accuracy'])
         self._model.fit_generator(callbacks=callbacks, *args, **kwargs)
+
+    def get_inference_model(self):
+        return AttentionalPredictor(self._model, self.encoding_size, self._char_table)
+
+    def get_performance_estimator(self, num_trials):
+        return AttentionModelMetric(self.get_inference_model(), num_trials)
+
+
+class AttentionalPredictor:
+    def __init__(self, model, encoding_size, char_table):
+        self._model = model
+        self._char_table = char_table
+        self._encoding_size = encoding_size
+
+    @property
+    def char_table(self):
+        return self._char_table
+
+    def predict(self, hand_writing):
+        hand_writing = hand_writing.reshape(1, hand_writing.shape[1], 1)
+        state = np.zeros((1, self._encoding_size))
+
+        predictions = self._model.predict([hand_writing, state])
+        predictions = np.array(predictions)[:, 0, :]
+
+        classes = np.argmax(predictions, axis=-1)
+        return ''.join([self._char_table.decode(cls) for cls in classes])

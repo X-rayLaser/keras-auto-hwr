@@ -5,7 +5,7 @@ from keras import Model, Input
 from keras.layers import SimpleRNN, Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense
 
 from models import BaseModel
-from estimate import CharacterErrorRate
+from estimate import Seq2seqMetric
 from keras.callbacks import Callback
 from keras.optimizers import RMSprop
 
@@ -80,7 +80,7 @@ class SequenceToSequenceTrainer(BaseModel):
         self._decoder.load_weights(os.path.join(path, 'decoder.h5'))
 
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
-        estimator = CharacterErrorRate(self.get_inference_model(), 8)
+        estimator = self.get_performance_estimator(8)
 
         class MyCallback(Callback):
             def on_epoch_end(self, epoch, logs=None):
@@ -100,6 +100,9 @@ class SequenceToSequenceTrainer(BaseModel):
     def get_inference_model(self):
         return SequenceToSequencePredictor(self._encoder, self._decoder,
                                            self._char_table)
+
+    def get_performance_estimator(self, num_trials):
+        return Seq2seqMetric(self.get_inference_model(), num_trials)
 
 
 class BeamCandidate:
