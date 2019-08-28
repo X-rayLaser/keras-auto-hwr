@@ -65,7 +65,7 @@ class AttentionModelMetric(PerformanceMetric):
 
         count = 0
 
-        for hand_writings, ys in test_data.get_examples(batch_size=1):
+        for inputs, ys in test_data.get_examples(batch_size=1):
             count += 1
             if count > self._num_trials:
                 return errors_total / characters_total
@@ -75,8 +75,7 @@ class AttentionModelMetric(PerformanceMetric):
             ground_true = ''.join([self._inference_model.char_table.decode(c) for c in classes]).strip()
 
             try:
-                x = hand_writings[0]
-                prediction = self.predict(x)
+                prediction = self.predict(inputs)
             except:
                 traceback.print_exc()
                 prediction = ''

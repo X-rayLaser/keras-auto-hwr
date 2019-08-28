@@ -164,9 +164,12 @@ class AttentionModelDataGenerator(DataSetGenerator):
         self._encoder_states = encoder_states
 
     def prepare_batch(self, hand_writings, transcriptions):
+        batch_size = len(transcriptions)
+        alphabet_size = len(self._char_table)
+
         x = np.array(hand_writings)
         x_norm = x.reshape((-1, x.shape[1], 1))
-        initial_state = np.zeros((len(transcriptions), self._encoder_states))
+        initial_state = np.zeros((batch_size, self._encoder_states))
 
         targets = []
         for tok in transcriptions:
@@ -176,13 +179,14 @@ class AttentionModelDataGenerator(DataSetGenerator):
             targets.append(encoded)
 
         targets = np.array(targets)
-        y = to_categorical(targets, num_classes=len(self._char_table))
+        y = to_categorical(targets, num_classes=alphabet_size)
 
         final_y = []
         for t in range(self._Ty):
             final_y.append(y[:, t, :])
 
-        return [x_norm, initial_state], final_y
+        initial_y = np.zeros((batch_size, 1, alphabet_size))
+        return [x_norm, initial_state, initial_y], final_y
 
 
 class BaseFactory:
@@ -261,7 +265,7 @@ class BaseFactory:
         return PreLoadedSource(hand_writings, transcriptions)
 
 
-from preprocessing import SignalMaker, DeltaSignal, SequencePadding
+from preprocessing import SignalMaker, DeltaSignal, SequencePadding, Normalization
 
 
 class Seq2seqFactory(BaseFactory):
@@ -305,6 +309,8 @@ class AttentionalSeq2seqFactory(BaseFactory):
             SequencePadding(target_padding=self._char_table.sentinel,
                             input_len=self._Tx, output_len=self._Ty - 1)
         )
+
+        preprocessor.add_step(Normalization())
         return preprocessor
 
     def create_model(self):

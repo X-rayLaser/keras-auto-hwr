@@ -13,7 +13,7 @@ def train(data_path, max_examples, lrate, epochs):
     #source = LinesSource(OnlineSource(data_path))
     #source = SyntheticSource(num_lines=100)
 
-    factory = AttentionalSeq2seqFactory(Tx=350, Ty=10, num_cells=128,
+    factory = AttentionalSeq2seqFactory(Tx=700, Ty=20, num_cells=128,
                                         data_source=source,
                                         char_table=char_table,
                                         num_examples=max_examples)
@@ -23,7 +23,7 @@ def train(data_path, max_examples, lrate, epochs):
     val_gen = factory.validation_generator()
 
     trainer = factory.create_model()
-    batch_size = 16
+    batch_size = 32
     validation_steps = 4
     trainer.fit_generator(
         lrate,
