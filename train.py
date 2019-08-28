@@ -1,8 +1,7 @@
-from data import DataFactory, CharacterTable
+from data import CharacterTable, Seq2seqFactory
 from sources.compiled import CompilationSource
 from sources.iam_online import OnlineSource, LinesSource, WordsSource
 from sources.synthetic import SyntheticSource
-from models import SequenceToSequenceTrainer
 from estimate import CharacterErrorRate
 
 
@@ -14,13 +13,13 @@ def train(data_path, max_examples, lrate, epochs):
     #source = LinesSource(OnlineSource(data_path))
     #source = SyntheticSource(num_lines=100)
 
-    factory = DataFactory(source, char_table,
-                          num_examples=max_examples)
+    factory = Seq2seqFactory(source, char_table,
+                             num_examples=max_examples)
 
     train_gen = factory.training_generator()
     val_gen = factory.validation_generator()
 
-    trainer = SequenceToSequenceTrainer(char_table=char_table)
+    trainer = factory.create_model()
     batch_size = 1
     validation_steps = 64
     trainer.fit_generator(
@@ -52,4 +51,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     train(args.data_path, args.max_examples, args.lrate, args.epochs)
-    print('Done!')

@@ -155,22 +155,81 @@ class DataSetGenerator:
         return len(self._iter)
 
 
-class DataFactory:
+class AttentionModelDataGenerator(DataSetGenerator):
+    def __init__(self, lines_iterator, char_table, Tx, Ty, encoder_states=32):
+        super().__init__(lines_iterator, char_table)
+
+        self._Tx = Tx
+        self._Ty = Ty
+        self._encoder_states = encoder_states
+
+    def pad_sequences(self, seqs, max_len, pad_value):
+        for i in range(len(seqs)):
+            while len(seqs[i]) < max_len:
+                seqs[i].append(pad_value)
+
+            seqs[i] = seqs[:max_len]
+
+    def prepare_batch(self, hand_writings, transcriptions):
+        self.pad_sequences(hand_writings, self._Tx, 0)
+        self.pad_sequences(transcriptions, self._Ty - 1, '\n')
+
+        x = np.array(hand_writings)
+        x_norm = x.reshape((-1, x.shape[1], 1))
+        initial_state = np.zeros(self._encoder_states)
+
+        targets = []
+        for tok in transcriptions:
+            s = tok + self._char_table.sentinel
+            encoded = [self._char_table.encode(ch) for ch in s]
+            targets.append(encoded)
+
+        y = to_categorical(targets, num_classes=len(self._char_table))
+        return [x_norm, initial_state], list(y)
+
+
+class BaseFactory:
     def __init__(self, data_source, char_table, num_examples=2000, save_images_path=None):
-        self._save_images_path = save_images_path
-        it = self._preload(data_source, num_examples)
-        it = self._adapt(it)
+        self._data_source = data_source
+
         self._char_table = char_table
-        self._splitter = DataSplitter(it)
+        self._num_examples = num_examples
+        self._save_images_path = save_images_path
 
-        train_iter = self._splitter.train_data()
+        self._train_iter = None
+        self._val_iter = None
+        self._test_iter = None
 
-        preprocessor = PreProcessor(self._char_table)
+        self._prepare_sources()
+
+    def create_model(self):
+        raise NotImplementedError
+
+    def training_generator(self):
+        raise NotImplementedError
+
+    def validation_generator(self):
+        raise NotImplementedError
+
+    def test_generator(self):
+        raise NotImplementedError
+
+    def _prepare_sources(self):
+        it = self._preload()
+        it = self._adapt(it)
+        splitter = DataSplitter(it)
+
+        train_iter = splitter.train_data()
+
+        preprocessor = self._get_preprocessor()
         preprocessor.fit(train_iter)
 
         self._train_iter = preprocessor.process(train_iter)
-        self._val_iter = preprocessor.process(self._splitter.validation_data())
-        self._test_iter = preprocessor.process(self._splitter.test_data())
+        self._val_iter = preprocessor.process(splitter.validation_data())
+        self._test_iter = preprocessor.process(splitter.test_data())
+
+    def _get_preprocessor(self):
+        raise NotImplementedError
 
     def save_points(self, points, transcription):
         file_name = '{}.jpg'.format(quote(transcription, safe=' ,.'))
@@ -194,17 +253,25 @@ class DataFactory:
 
         return PreLoadedSource(points_seq, transcriptions)
 
-    def _preload(self, data_source, num_examples):
+    def _preload(self):
         hand_writings = []
         transcriptions = []
-        for i, (points, t) in enumerate(data_source.get_sequences()):
-            if i > num_examples:
+        for i, (points, t) in enumerate(self._data_source.get_sequences()):
+            if i > self._num_examples:
                 break
 
             hand_writings.append(points)
             transcriptions.append(t)
 
         return PreLoadedSource(hand_writings, transcriptions)
+
+
+class Seq2seqFactory(BaseFactory):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _get_preprocessor(self):
+        return PreProcessor(self._char_table)
 
     def training_generator(self):
         return DataSetGenerator(self._train_iter, self._char_table)
@@ -216,3 +283,33 @@ class DataFactory:
     def test_generator(self):
         return DataSetGenerator(self._test_iter,
                                 self._char_table)
+
+    def create_model(self):
+        from models.seq2seq import SequenceToSequenceTrainer
+        return SequenceToSequenceTrainer(self._char_table)
+
+
+class AttentionalSeq2seqFactory(BaseFactory):
+    def __init__(self, Tx, Ty, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._Tx = Tx
+        self._Ty = Ty
+
+    def _get_preprocessor(self):
+        return PreProcessor(self._char_table)
+
+    def create_model(self):
+        from models.attention import Seq2SeqWithAttention
+        return Seq2SeqWithAttention(self._char_table, Tx=self._Tx, Ty=self._Ty)
+
+    def _get_generator(self, iterator):
+        return AttentionModelDataGenerator(iterator, self._char_table, self._Tx, self._Ty)
+
+    def training_generator(self):
+        return self._get_generator(self._train_iter)
+
+    def validation_generator(self):
+        return self._get_generator(self._val_iter)
+
+    def test_generator(self):
+        return self._get_generator(self._test_iter)

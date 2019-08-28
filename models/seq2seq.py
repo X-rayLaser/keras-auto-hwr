@@ -1,14 +1,13 @@
-import numpy as np
 import os
 
-from keras.utils import to_categorical
-from keras.models import load_model, Sequential
-from keras.models import Model
-from keras.layers import SimpleRNN, TimeDistributed, Dense, Input, Conv1D,\
-    Flatten, MaxPool1D, BatchNormalization, GRU, Reshape, CuDNNGRU, Bidirectional, Concatenate
+import numpy as np
+from keras import Model, Input
+from keras.layers import SimpleRNN, Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense
+
+from models import BaseModel
 
 
-class SequenceToSequenceTrainer:
+class SequenceToSequenceTrainer(BaseModel):
     def __init__(self, char_table, encoding_size=128):
         self._char_table = char_table
         self._encoding_size = encoding_size
@@ -33,7 +32,10 @@ class SequenceToSequenceTrainer:
 
         x = encoder_inputs
         x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPool1D(pool_size=2)(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPool1D(pool_size=2)(x)
+        x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D(pool_size=2)(x)
         x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D(pool_size=2)(x)
@@ -88,7 +90,7 @@ class SequenceToSequenceTrainer:
                     print()
                     estimator.estimate(val_gen)
 
-        from keras.optimizers import Adam, SGD, RMSprop
+        from keras.optimizers import RMSprop
         self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
                             metrics=['accuracy'])
         self._model.summary()
@@ -98,8 +100,8 @@ class SequenceToSequenceTrainer:
             print('difference', dif.mean(), dif.std())
 
     def get_inference_model(self):
-        return ImageToSequencePredictor(self._encoder, self._decoder,
-                                        self._char_table)
+        return SequenceToSequencePredictor(self._encoder, self._decoder,
+                                           self._char_table)
 
 
 class BeamCandidate:
@@ -181,7 +183,7 @@ class BeamSearch:
         return self._beam_search(next_candidates)
 
 
-class ImageToSequencePredictor:
+class SequenceToSequencePredictor:
     def __init__(self, encoder, decoder, char_table):
         self._encoder = encoder
         self._decoder = decoder
