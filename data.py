@@ -163,29 +163,26 @@ class AttentionModelDataGenerator(DataSetGenerator):
         self._Ty = Ty
         self._encoder_states = encoder_states
 
-    def pad_sequences(self, seqs, max_len, pad_value):
-        for i in range(len(seqs)):
-            while len(seqs[i]) < max_len:
-                seqs[i].append(pad_value)
-
-            seqs[i] = seqs[:max_len]
-
     def prepare_batch(self, hand_writings, transcriptions):
-        self.pad_sequences(hand_writings, self._Tx, 0)
-        self.pad_sequences(transcriptions, self._Ty - 1, '\n')
-
         x = np.array(hand_writings)
         x_norm = x.reshape((-1, x.shape[1], 1))
-        initial_state = np.zeros(self._encoder_states)
+        initial_state = np.zeros((len(transcriptions), self._encoder_states))
 
         targets = []
         for tok in transcriptions:
             s = tok + self._char_table.sentinel
+
             encoded = [self._char_table.encode(ch) for ch in s]
             targets.append(encoded)
 
+        targets = np.array(targets)
         y = to_categorical(targets, num_classes=len(self._char_table))
-        return [x_norm, initial_state], list(y)
+
+        final_y = []
+        for t in range(self._Ty):
+            final_y.append(y[:, t, :])
+
+        return [x_norm, initial_state], final_y
 
 
 class BaseFactory:
@@ -200,8 +197,6 @@ class BaseFactory:
         self._val_iter = None
         self._test_iter = None
 
-        self._prepare_sources()
-
     def create_model(self):
         raise NotImplementedError
 
@@ -214,7 +209,7 @@ class BaseFactory:
     def test_generator(self):
         raise NotImplementedError
 
-    def _prepare_sources(self):
+    def prepare_sources(self):
         it = self._preload()
         it = self._adapt(it)
         splitter = DataSplitter(it)
@@ -266,12 +261,18 @@ class BaseFactory:
         return PreLoadedSource(hand_writings, transcriptions)
 
 
+from preprocessing import SignalMaker, DeltaSignal, SequencePadding
+
+
 class Seq2seqFactory(BaseFactory):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def _get_preprocessor(self):
-        return PreProcessor(self._char_table)
+        preprocessor = PreProcessor(self._char_table)
+        preprocessor.add_step(SignalMaker())
+        preprocessor.add_step(DeltaSignal())
+        return preprocessor
 
     def training_generator(self):
         return DataSetGenerator(self._train_iter, self._char_table)
@@ -296,7 +297,14 @@ class AttentionalSeq2seqFactory(BaseFactory):
         self._Ty = Ty
 
     def _get_preprocessor(self):
-        return PreProcessor(self._char_table)
+        preprocessor = PreProcessor(self._char_table)
+        preprocessor.add_step(SignalMaker())
+        preprocessor.add_step(DeltaSignal())
+        preprocessor.add_step(
+            SequencePadding(target_padding=self._char_table.sentinel,
+                            input_len=self._Tx, output_len=self._Ty - 1)
+        )
+        return preprocessor
 
     def create_model(self):
         from models.attention import Seq2SeqWithAttention

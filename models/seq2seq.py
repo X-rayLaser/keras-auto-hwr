@@ -5,6 +5,9 @@ from keras import Model, Input
 from keras.layers import SimpleRNN, Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense
 
 from models import BaseModel
+from estimate import CharacterErrorRate
+from keras.callbacks import Callback
+from keras.optimizers import RMSprop
 
 
 class SequenceToSequenceTrainer(BaseModel):
@@ -77,10 +80,6 @@ class SequenceToSequenceTrainer(BaseModel):
         self._decoder.load_weights(os.path.join(path, 'decoder.h5'))
 
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
-
-        from estimate import CharacterErrorRate
-        from keras.callbacks import Callback
-
         estimator = CharacterErrorRate(self.get_inference_model(), 8)
 
         class MyCallback(Callback):
@@ -90,7 +89,6 @@ class SequenceToSequenceTrainer(BaseModel):
                     print()
                     estimator.estimate(val_gen)
 
-        from keras.optimizers import RMSprop
         self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
                             metrics=['accuracy'])
         self._model.summary()

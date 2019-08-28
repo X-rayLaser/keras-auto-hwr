@@ -1,4 +1,4 @@
-from data import CharacterTable, Seq2seqFactory
+from data import CharacterTable, Seq2seqFactory, AttentionalSeq2seqFactory
 from sources.compiled import CompilationSource
 from sources.iam_online import OnlineSource, LinesSource, WordsSource
 from sources.synthetic import SyntheticSource
@@ -13,15 +13,17 @@ def train(data_path, max_examples, lrate, epochs):
     #source = LinesSource(OnlineSource(data_path))
     #source = SyntheticSource(num_lines=100)
 
-    factory = Seq2seqFactory(source, char_table,
-                             num_examples=max_examples)
+    factory = AttentionalSeq2seqFactory(Tx=225, Ty=15, data_source=source,
+                                        char_table=char_table,
+                                        num_examples=max_examples)
 
+    factory.prepare_sources()
     train_gen = factory.training_generator()
     val_gen = factory.validation_generator()
 
     trainer = factory.create_model()
-    batch_size = 1
-    validation_steps = 64
+    batch_size = 16
+    validation_steps = 4
     trainer.fit_generator(
         lrate,
         train_gen,

@@ -3,6 +3,7 @@ from keras.activations import softmax
 from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector, Concatenate, Activation, Dot
 
 from models import BaseModel
+from keras.optimizers import RMSprop
 
 
 class Seq2SeqWithAttention(BaseModel):
@@ -47,12 +48,14 @@ class Seq2SeqWithAttention(BaseModel):
             outputs.append(y_pred)
 
         model = Model(inputs=[encoder_inputs, decoder_initial_state], outputs=outputs)
-
+        model.summary()
         self._model = model
         self._Tx = Tx
         self._Ty = Ty
         self._char_table = char_table
 
-    def fit_generator(self):
-        # todo: implement this method and get_inference_model as well
-        pass
+    def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
+        callbacks = []
+        self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
+                            metrics=['accuracy'])
+        self._model.fit_generator(callbacks=callbacks, *args, **kwargs)

@@ -45,16 +45,17 @@ class DeltaSignal(ProcessingStep):
 
 
 class SequencePadding(ProcessingStep):
-    def __init__(self, input_padding=0, target_padding=' '):
-        self._input_len = 0
-        self._output_len = 0
+    def __init__(self, input_padding=0, target_padding=' ', input_len=None, output_len=None):
+        self._input_len = input_len
+        self._output_len = output_len
         self._input_pad = input_padding
         self._target_pad = target_padding
 
     def fit(self, batch):
-        for handwriting, transcription in batch.get_sequences():
-            self._input_len = max(len(handwriting), self._input_len)
-            self._output_len = max(len(transcription), self._output_len)
+        if self._input_len is None or self._output_len is None:
+            for handwriting, transcription in batch.get_sequences():
+                self._input_len = max(len(handwriting), self._input_len)
+                self._output_len = max(len(transcription), self._output_len)
 
     def process(self, batch):
         hand_writings = []
@@ -81,6 +82,9 @@ class SequencePadding(ProcessingStep):
     def _pad_target(self, target_seq):
         while len(target_seq) < self._output_len:
             target_seq += self._target_pad
+
+        if len(target_seq) > self._output_len:
+            target_seq = target_seq[:self._output_len]
 
         return target_seq
 
@@ -129,14 +133,9 @@ class PreProcessor:
     def __init__(self, char_table):
         self._steps = []
         self._char_table = char_table
-        self._add_steps()
 
-    def _add_steps(self):
-        self._steps.append(SignalMaker())
-        self._steps.append(DeltaSignal())
-        #self._steps.append(SequencePadding(target_padding=self._char_table.sentinel))
-        #self._steps.append(PrincipalComponentAnalysis())
-        #self._steps.append(Normalization())
+    def add_step(self, step):
+        self._steps.append(step)
 
     def fit(self, batch):
         for step in self._steps:
