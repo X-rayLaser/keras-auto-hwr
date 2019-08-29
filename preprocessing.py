@@ -53,6 +53,8 @@ class SequencePadding(ProcessingStep):
 
     def fit(self, batch):
         if self._input_len is None or self._output_len is None:
+            self._input_len = 0
+            self._output_len = 0
             for handwriting, transcription in batch.get_sequences():
                 self._input_len = max(len(handwriting), self._input_len)
                 self._output_len = max(len(transcription), self._output_len)
@@ -87,6 +89,66 @@ class SequencePadding(ProcessingStep):
             target_seq = target_seq[:self._output_len]
 
         return target_seq
+
+
+class Truncation(ProcessingStep):
+    def __init__(self, fraction=0.5):
+        self._fraction = fraction
+        self._max_input_len = 0
+        self._max_output_len = 0
+
+    def fit(self, batch):
+        inp_len = max([len(inp) for inp, output in batch.get_sequences()])
+        self._max_input_len = inp_len
+
+        output_len = max([len(output) for inp, output in batch.get_sequences()])
+        self._max_output_len = output_len
+
+    def _calculate_cutoff(self, max_len):
+        return int(round(max_len * self._fraction))
+
+    def process(self, batch):
+        inputs = []
+        outputs = []
+        input_len = self._calculate_cutoff(self._max_input_len)
+        output_len = self._calculate_cutoff(self._max_output_len)
+
+        for input_seq, output_seq in batch.get_sequences():
+            inputs.append(input_seq[:input_len])
+            outputs.append(output_seq[:output_len])
+
+        return PreLoadedSource(inputs, outputs)
+
+
+class DftCompress(ProcessingStep):
+    def __init__(self, block_size=64, cutoff=16):
+        self._block_size = block_size
+        self._cutoff = cutoff
+
+    def fit(self, batch):
+        pass
+
+    def compress(self, point_seq):
+        while len(point_seq) % self._block_size != 0:
+            point_seq.append(0)
+
+        res = []
+        for i in range(0, len(point_seq), self._block_size):
+            block = point_seq[i:i + self._block_size]
+            spectrum = np.fft.fft(block)
+            spectrum = spectrum[:self._cutoff]
+            res.extend(np.abs(spectrum).tolist())
+
+        return res
+
+    def process(self, batch):
+        spectrums = []
+        transcriptions = []
+        for handwriting, transcription in batch.get_sequences():
+            spectrums.append(self.compress(handwriting))
+            transcriptions.append(transcription)
+
+        return PreLoadedSource(spectrums, transcriptions)
 
 
 class PrincipalComponentAnalysis(ProcessingStep):

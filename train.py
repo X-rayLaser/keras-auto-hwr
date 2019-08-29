@@ -8,17 +8,18 @@ def train(data_path, max_examples, lrate, epochs):
 
     source = CompilationSource(data_path)
 
-    factory = AttentionalSeq2seqFactory(Tx=700, Ty=20, num_cells=128,
+    factory = AttentionalSeq2seqFactory(num_cells=128,
                                         data_source=source,
                                         char_table=char_table,
-                                        num_examples=max_examples)
+                                        num_examples=max_examples,
+                                        size_fraction=0.2)
 
     factory.prepare_sources()
     train_gen = factory.training_generator()
     val_gen = factory.validation_generator()
 
     trainer = factory.create_model()
-    batch_size = 1
+    batch_size = 16
     validation_steps = 4
     trainer.fit_generator(
         lrate,

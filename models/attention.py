@@ -7,7 +7,7 @@ from models import BaseModel
 from keras.optimizers import RMSprop
 import numpy as np
 from estimate import AttentionModelMetric
-from keras.callbacks import Callback
+from keras.callbacks import Callback, ReduceLROnPlateau
 from models.base import BaseBeamSearch
 
 
@@ -17,7 +17,7 @@ class Seq2SeqWithAttention(BaseModel):
         encoder_inputs = Input(shape=(Tx, 1))
 
         x = encoder_inputs
-        x = Dropout(0.05)(x)
+        #x = Dropout(0.05)(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D()(x)
 
@@ -25,7 +25,7 @@ class Seq2SeqWithAttention(BaseModel):
         x = MaxPool1D()(x)
         x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
         x = Reshape(target_shape=(-1, 1))(x)
-        x = Dropout(0.05)(x)
+        #x = Dropout(0.05)(x)
 
         encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True)
         encoder_rnn = Bidirectional(encoder_rnn)
@@ -105,9 +105,12 @@ class Seq2SeqWithAttention(BaseModel):
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
         estimator = self.get_performance_estimator(8)
 
+        reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.2,
+                                      patience=20, min_lr=0.00001)
+
         class MyCallback(Callback):
             def on_epoch_end(self, epoch, logs=None):
-                if epoch % 5 == 0:
+                if epoch % 50 == 0:
                     estimator.estimate(train_gen)
                     print()
                     estimator.estimate(val_gen)

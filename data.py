@@ -6,7 +6,8 @@ from preprocessing import PreProcessor
 from util import points_to_image
 from urllib.parse import quote
 import os
-from preprocessing import SignalMaker, DeltaSignal, SequencePadding, Normalization
+from preprocessing import SignalMaker, DeltaSignal, SequencePadding,\
+    Normalization, DftCompress, Truncation
 
 
 class CharacterTable:
@@ -194,7 +195,6 @@ class AttentionModelDataGenerator(DataSetGenerator):
         ).reshape((batch_size, 1, alphabet_size))
 
         self._char_table.encode(self._char_table.start)
-        #initial_y = np.zeros((batch_size, 1, alphabet_size))
         return [x_norm, initial_state, initial_y], final_y
 
 
@@ -209,6 +209,9 @@ class BaseFactory:
         self._train_iter = None
         self._val_iter = None
         self._test_iter = None
+
+        self._Tx = 0
+        self._Ty = 0
 
     def create_model(self):
         raise NotImplementedError
@@ -235,6 +238,18 @@ class BaseFactory:
         self._train_iter = preprocessor.process(train_iter)
         self._val_iter = preprocessor.process(splitter.validation_data())
         self._test_iter = preprocessor.process(splitter.test_data())
+
+        all_iterators = [self._train_iter, self._val_iter, self._test_iter]
+        self._Tx = max([self._max_input_len(it) for it in all_iterators])
+        self._Ty = max([self._max_output_len(it) for it in all_iterators])
+
+        self._Ty += 1
+
+    def _max_input_len(self, iter):
+        return max([len(inp) for inp, output in iter.get_sequences()])
+
+    def _max_output_len(self, iter):
+        return max([len(output) for inp, output in iter.get_sequences()])
 
     def _get_preprocessor(self):
         raise NotImplementedError
@@ -301,19 +316,19 @@ class Seq2seqFactory(BaseFactory):
 
 
 class AttentionalSeq2seqFactory(BaseFactory):
-    def __init__(self, Tx, Ty, num_cells, *args, **kwargs):
+    def __init__(self, size_fraction, num_cells, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._Tx = Tx
-        self._Ty = Ty
+        self._fraction = size_fraction
         self._num_cells = num_cells
 
     def _get_preprocessor(self):
         preprocessor = PreProcessor(self._char_table)
         preprocessor.add_step(SignalMaker())
         preprocessor.add_step(DeltaSignal())
+        preprocessor.add_step(Truncation(self._fraction))
+        #preprocessor.add_step(DftCompress(block_size=64, cutoff=32))
         preprocessor.add_step(
-            SequencePadding(target_padding=self._char_table.sentinel,
-                            input_len=self._Tx, output_len=self._Ty - 1)
+            SequencePadding(target_padding=self._char_table.sentinel)
         )
 
         preprocessor.add_step(Normalization())
@@ -321,6 +336,7 @@ class AttentionalSeq2seqFactory(BaseFactory):
 
     def create_model(self):
         from models.attention import Seq2SeqWithAttention
+        print('Tx {}, Ty {}'.format(self._Tx, self._Ty))
         return Seq2SeqWithAttention(self._char_table, self._num_cells,
                                     Tx=self._Tx, Ty=self._Ty)
 
