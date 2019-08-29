@@ -8,6 +8,7 @@ from keras.optimizers import RMSprop
 import numpy as np
 from estimate import AttentionModelMetric
 from keras.callbacks import Callback
+from models.base import BaseBeamSearch
 
 
 class Seq2SeqWithAttention(BaseModel):
@@ -16,7 +17,7 @@ class Seq2SeqWithAttention(BaseModel):
         encoder_inputs = Input(shape=(Tx, 1))
 
         x = encoder_inputs
-        x = Dropout(0.125)(x)
+        x = Dropout(0.05)(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D()(x)
 
@@ -24,7 +25,7 @@ class Seq2SeqWithAttention(BaseModel):
         x = MaxPool1D()(x)
         x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
         x = Reshape(target_shape=(-1, 1))(x)
-        x = Dropout(0.125)(x)
+        x = Dropout(0.05)(x)
 
         encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True)
         encoder_rnn = Bidirectional(encoder_rnn)
@@ -75,6 +76,28 @@ class Seq2SeqWithAttention(BaseModel):
                       outputs=outputs)
         model.summary()
         self._model = model
+
+        encoder_activations = Input(shape=(activations_len, encoding_size))
+        prev_s = decoder_initial_state
+        y_pred = initial_y
+
+        s = attention_repeator(prev_s)
+        v = attention_concatenator([s, encoder_activations])
+        v = attention_hidden_densor(v)
+        v = attention_output_densor(v)
+        alphas = attention_softmax(v)
+        c = attention_dotor([alphas, encoder_activations])
+
+        x = multi_modal_concatenator([c, y_pred])
+
+        x, prev_s = decoder_rnn(x, initial_state=prev_s)
+        y_pred = densor(x)
+
+        self._encoder_model = Model(input=encoder_inputs, output=activations)
+
+        self._decoder_model = Model(inputs=[encoder_activations, decoder_initial_state, initial_y],
+                                    outputs=[y_pred, prev_s])
+
         self._Tx = Tx
         self._Ty = Ty
         self._char_table = char_table
@@ -94,17 +117,56 @@ class Seq2SeqWithAttention(BaseModel):
         self._model.fit_generator(callbacks=callbacks, *args, **kwargs)
 
     def get_inference_model(self):
-        return AttentionalPredictor(self._model, self.encoding_size, self._char_table)
+        return BeamSearchPredictor(self._encoder_model, self._decoder_model, self._char_table)
 
     def get_performance_estimator(self, num_trials):
         return AttentionModelMetric(self.get_inference_model(), num_trials)
 
 
+class AttentionSearch(BaseBeamSearch):
+    def __init__(self, encoder_state, decoder, decoder_state, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._encoder_state = encoder_state
+        self._decoder = decoder
+        self._initial_decoder_state = decoder_state
+
+    def get_initial_state(self):
+        return self._initial_decoder_state
+
+    def decode_next(self, prev_y, prev_state):
+        y_prob, state = self._decoder.predict([self._encoder_state, prev_state, prev_y])
+        next_p = y_prob[0]
+        return next_p, state
+
+
+class BeamSearchPredictor:
+    def __init__(self, encoder, decoder, char_table):
+        self._encoder = encoder
+        self._decoder = decoder
+        self._char_table = char_table
+
+    @property
+    def char_table(self):
+        return self._char_table
+
+    def predict(self, inputs):
+        X, initial_state, initial_y = inputs
+        X = X.reshape(1, X.shape[1], 1)
+
+        activations = self._encoder.predict(X)
+
+        beam_search = AttentionSearch(encoder_state=activations,
+                                      decoder=self._decoder,
+                                      decoder_state=initial_state,
+                                      char_table=self._char_table)
+
+        return beam_search.generate_sequence()
+
+
 class AttentionalPredictor:
-    def __init__(self, model, encoding_size, char_table):
+    def __init__(self, model, char_table):
         self._model = model
         self._char_table = char_table
-        self._encoding_size = encoding_size
 
     @property
     def char_table(self):

@@ -6,6 +6,7 @@ from preprocessing import PreProcessor
 from util import points_to_image
 from urllib.parse import quote
 import os
+from preprocessing import SignalMaker, DeltaSignal, SequencePadding, Normalization
 
 
 class CharacterTable:
@@ -185,7 +186,15 @@ class AttentionModelDataGenerator(DataSetGenerator):
         for t in range(self._Ty):
             final_y.append(y[:, t, :])
 
-        initial_y = np.zeros((batch_size, 1, alphabet_size))
+        char_table = self._char_table
+        initial_y = [char_table.encode(char_table.start) for _ in range(batch_size)]
+
+        initial_y = to_categorical(
+            initial_y, num_classes=alphabet_size
+        ).reshape((batch_size, 1, alphabet_size))
+
+        self._char_table.encode(self._char_table.start)
+        #initial_y = np.zeros((batch_size, 1, alphabet_size))
         return [x_norm, initial_state, initial_y], final_y
 
 
@@ -263,9 +272,6 @@ class BaseFactory:
             transcriptions.append(t)
 
         return PreLoadedSource(hand_writings, transcriptions)
-
-
-from preprocessing import SignalMaker, DeltaSignal, SequencePadding, Normalization
 
 
 class Seq2seqFactory(BaseFactory):
