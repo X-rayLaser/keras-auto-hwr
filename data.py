@@ -326,7 +326,7 @@ class AttentionalSeq2seqFactory(BaseFactory):
         preprocessor.add_step(SignalMaker())
         preprocessor.add_step(DeltaSignal())
         preprocessor.add_step(Truncation(self._fraction))
-        #preprocessor.add_step(DftCompress(block_size=64, cutoff=32))
+        preprocessor.add_step(DftCompress(block_size=64, cutoff=64))
         preprocessor.add_step(
             SequencePadding(target_padding=self._char_table.sentinel)
         )
