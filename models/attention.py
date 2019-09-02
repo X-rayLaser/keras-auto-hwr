@@ -12,8 +12,9 @@ from models.base import BaseBeamSearch
 
 
 class ConvolutionLayer:
-    def __init__(self, kernel_size):
+    def __init__(self, filters, kernel_size):
         #self.input_size = input_size
+        self.filters = filters
         self.kernel_size = kernel_size
 
     def back_track(self, sequential_id):
@@ -21,6 +22,10 @@ class ConvolutionLayer:
 
     def output_size(self, input_size):
         return input_size - self.kernel_size + 1
+
+    def create(self):
+        return Conv1D(filters=self.filters, kernel_size=self.kernel_size,
+                      activation='relu')
 
 
 class PoolingLayer:
@@ -34,14 +39,24 @@ class PoolingLayer:
     def output_size(self, input_size):
         return input_size // self.kernel_size
 
+    def create(self):
+        return MaxPool1D(self.kernel_size)
+
 
 class EncoderSpec:
     def __init__(self, input_size):
         self._input_size = input_size
         self._layers = []
 
+    def get_graph(self, initial_x):
+        tensor = initial_x
+        for layer in self._layers:
+            tensor = layer.create()(tensor)
+
+        return tensor
+
     def add_conv_layer(self, filters, kernel_size):
-        self._layers.append(ConvolutionLayer(kernel_size))
+        self._layers.append(ConvolutionLayer(filters, kernel_size))
 
     def add_pooling_layer(self, pool_size=2):
         self._layers.append(PoolingLayer(pool_size))
@@ -77,6 +92,15 @@ class Seq2SeqWithAttention(BaseModel):
         self._Ty = Ty
         self._char_table = char_table
         self._mysoftmax = mysoftmax
+
+        self._encoder_spec = EncoderSpec(self._Tx)
+        self._encoder_spec.add_conv_layer(12, 3)
+        self._encoder_spec.add_pooling_layer(2)
+
+        self._encoder_spec.add_conv_layer(24, 3)
+        self._encoder_spec.add_pooling_layer(2)
+
+        self._encoder_spec.add_conv_layer(1, 1)
 
         encoder, activations_len = self.encoder_model(Tx, encoding_size)
         attention = self.attention_model(activations_len, mysoftmax)
@@ -152,17 +176,13 @@ class Seq2SeqWithAttention(BaseModel):
         encoder_inputs = Input(shape=(Tx, 1))
         x = encoder_inputs
         # x = Dropout(0.05)(x)
-        x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
-        x = MaxPool1D()(x)
-        x = Conv1D(filters=24, kernel_size=3, padding='same', activation='relu')(x)
-        x = MaxPool1D()(x)
-        x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
+        x = self._encoder_spec.get_graph(x)
         x = Reshape(target_shape=(-1, 1))(x)
         # x = Dropout(0.05)(x)
         encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True)
         encoder_rnn = Bidirectional(encoder_rnn)
         activations, forward_state, backward_state = encoder_rnn(x)
-        activations_len = Tx // 2 // 2
+        activations_len = self._encoder_spec.output_size()
 
         return Model(input=encoder_inputs, output=activations), activations_len
 
@@ -176,14 +196,7 @@ class Seq2SeqWithAttention(BaseModel):
                                          self._decoder_model,
                                          self._char_table)
 
-        mapper = EncoderSpec(self._Tx)
-        mapper.add_conv_layer(12, 3)
-        mapper.add_pooling_layer(2)
-
-        mapper.add_conv_layer(24, 3)
-        mapper.add_pooling_layer(2)
-
-        mapper.add_conv_layer(12, 3)
+        mapper = self._encoder_spec
 
         debug = AttentionDebugCallback(train_gen, debug_predictor, mapper)
 
