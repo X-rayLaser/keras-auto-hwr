@@ -1,7 +1,7 @@
 from keras import Input, Model
 from keras.activations import softmax
 from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector,\
-    Concatenate, Activation, Dot, CuDNNGRU, Conv1D, MaxPool1D, Reshape, Dropout
+    Concatenate, Activation, Dot, Reshape
 
 from models import BaseModel
 from keras.optimizers import RMSprop
@@ -9,76 +9,7 @@ import numpy as np
 from estimate import AttentionModelMetric
 from keras.callbacks import Callback, ReduceLROnPlateau
 from models.base import BaseBeamSearch
-
-
-class ConvolutionLayer:
-    def __init__(self, filters, kernel_size):
-        #self.input_size = input_size
-        self.filters = filters
-        self.kernel_size = kernel_size
-
-    def back_track(self, sequential_id):
-        return list(range(sequential_id, sequential_id + self.kernel_size))
-
-    def output_size(self, input_size):
-        return input_size - self.kernel_size + 1
-
-    def create(self):
-        return Conv1D(filters=self.filters, kernel_size=self.kernel_size,
-                      activation='relu')
-
-
-class PoolingLayer:
-    def __init__(self, kernel_size):
-        self.kernel_size = kernel_size
-
-    def back_track(self, sequential_id):
-        start_index = sequential_id * self.kernel_size
-        return list(range(start_index, start_index + self.kernel_size))
-
-    def output_size(self, input_size):
-        return input_size // self.kernel_size
-
-    def create(self):
-        return MaxPool1D(self.kernel_size)
-
-
-class EncoderSpec:
-    def __init__(self, input_size):
-        self._input_size = input_size
-        self._layers = []
-
-    def get_graph(self, initial_x):
-        tensor = initial_x
-        for layer in self._layers:
-            tensor = layer.create()(tensor)
-
-        return tensor
-
-    def add_conv_layer(self, filters, kernel_size):
-        self._layers.append(ConvolutionLayer(filters, kernel_size))
-
-    def add_pooling_layer(self, pool_size=2):
-        self._layers.append(PoolingLayer(pool_size))
-
-    def output_size(self):
-        size = self._input_size
-
-        for layer in self._layers:
-            size = layer.output_size(size)
-
-        return size
-
-    def back_track(self, sequential_id):
-        mapped_ids = [sequential_id]
-
-        for layer in reversed(self._layers):
-            back_ids = []
-            for elem_id in mapped_ids:
-                back_ids.extend(layer.back_track(elem_id))
-            mapped_ids = list(set(back_ids))
-
-        return mapped_ids
+from models.encoder_spec import EncoderSpec
 
 
 class Seq2SeqWithAttention(BaseModel):
@@ -93,14 +24,7 @@ class Seq2SeqWithAttention(BaseModel):
         self._char_table = char_table
         self._mysoftmax = mysoftmax
 
-        self._encoder_spec = EncoderSpec(self._Tx)
-        self._encoder_spec.add_conv_layer(12, 3)
-        self._encoder_spec.add_pooling_layer(2)
-
-        self._encoder_spec.add_conv_layer(24, 3)
-        self._encoder_spec.add_pooling_layer(2)
-
-        self._encoder_spec.add_conv_layer(1, 1)
+        self._encoder_spec = EncoderSpec.from_config(self._Tx)
 
         encoder, activations_len = self.encoder_model(Tx, channels, encoding_size)
         attention = self.attention_model(activations_len, mysoftmax)
@@ -175,10 +99,8 @@ class Seq2SeqWithAttention(BaseModel):
     def encoder_model(self, Tx, channels, encoding_size):
         encoder_inputs = Input(shape=(Tx, channels))
         x = encoder_inputs
-        # x = Dropout(0.05)(x)
         x = self._encoder_spec.get_graph(x)
         x = Reshape(target_shape=(-1, 1))(x)
-        # x = Dropout(0.05)(x)
         encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True)
         encoder_rnn = Bidirectional(encoder_rnn)
         activations, forward_state, backward_state = encoder_rnn(x)

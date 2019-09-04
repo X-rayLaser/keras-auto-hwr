@@ -1,0 +1,54 @@
+{
+  "preprocessors": [{
+    "name": "Flattening",
+    "params": {}
+  },{
+    "name": "DeltaSignal",
+    "params": {}
+  }, {
+    "name": "Truncation",
+    "params": {
+      "fraction": 0.2
+    }
+  }, {
+    "name": "SequencePadding",
+    "params": {
+      "target_padding": "\n"
+    }
+  }, {
+    "name": "StreamSplit",
+    "params": {}
+  }],
+  "attention_model": {
+    "cells": 64,
+    "encoder_spec": [{
+      "name": "ConvolutionLayer",
+      "params": {
+        "filters": 6,
+        "kernel_size": 5
+      }
+    }, {
+      "name": "PoolingLayer",
+      "params": {
+        "kernel_size": 2
+      }
+    }, {
+      "name": "ConvolutionLayer",
+      "params": {
+        "filters": 12,
+        "kernel_size": 5
+      }
+    }, {
+      "name": "PoolingLayer",
+      "params": {
+        "kernel_size": 2
+      }
+    }, {
+      "name": "ConvolutionLayer",
+      "params": {
+        "filters": 1,
+        "kernel_size": 1
+      }
+    }]
+  }
+}

@@ -58,8 +58,8 @@ class DeltaSignal(ProcessingStep):
             xs = [x for x, y in points]
             ys = [y for x, y in points]
 
-            xs = self.to_deltas(xs)
-            ys = self.to_deltas(ys)
+            #xs = self.to_deltas(xs)
+            #ys = self.to_deltas(ys)
             input_seqs.append(xs + ys)
 
         return input_seqs, transcriptions

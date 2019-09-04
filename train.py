@@ -9,11 +9,9 @@ def train(data_path, max_examples, lrate, epochs):
 
     source = CompilationSource(data_path)
 
-    factory = AttentionalSeq2seqFactory(num_cells=32,
-                                        data_source=source,
+    factory = AttentionalSeq2seqFactory(data_source=source,
                                         char_table=char_table,
-                                        num_examples=max_examples,
-                                        size_fraction=0.2)
+                                        num_examples=max_examples)
 
     factory.prepare_sources()
     train_gen = factory.training_generator()

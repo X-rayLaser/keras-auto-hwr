@@ -8,6 +8,8 @@ from data import PreProcessor, Flattening, SignalMaker, DeltaSignal, DataSetGene
 from models.attention import Seq2SeqWithAttention
 from sources.preloaded import PreLoadedSource
 from util import points_to_image
+from . import preprocessing
+from config import Config
 
 
 class DataSplitter:
@@ -113,7 +115,18 @@ class BaseFactory:
         return max([len(t) for t in transcriptions])
 
     def _get_preprocessor(self):
-        raise NotImplementedError
+        conf = Config()
+        config_dict = conf.config_dict
+
+        preprocessor = PreProcessor(self._char_table)
+
+        for entry in config_dict['preprocessors']:
+            step_class_name = entry['name']
+            cls = getattr(preprocessing, step_class_name)
+            params = entry['params']
+            preprocessor.add_step(cls(**params))
+
+        return preprocessor
 
     def save_points(self, points, transcription):
         file_name = '{}.jpg'.format(quote(transcription, safe=' ,.'))
@@ -138,13 +151,6 @@ class Seq2seqFactory(BaseFactory):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _get_preprocessor(self):
-        preprocessor = PreProcessor(self._char_table)
-        preprocessor.add_step(Flattening())
-        preprocessor.add_step(SignalMaker())
-        preprocessor.add_step(DeltaSignal())
-        return preprocessor
-
     def training_generator(self):
         return DataSetGenerator(self._train_iter, self._char_table, self._preprocessor)
 
@@ -162,26 +168,12 @@ class Seq2seqFactory(BaseFactory):
 
 
 class AttentionalSeq2seqFactory(BaseFactory):
-    def __init__(self, size_fraction, num_cells, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._fraction = size_fraction
-        self._num_cells = num_cells
 
-    def _get_preprocessor(self):
-        preprocessor = PreProcessor(self._char_table)
-        preprocessor.add_step(Flattening())
-        #preprocessor.add_step(SignalMaker())
-        preprocessor.add_step(DeltaSignal())
-        preprocessor.add_step(Truncation(self._fraction))
-        #preprocessor.add_step(DftCompress(block_size=64, cutoff=64))
-        preprocessor.add_step(
-            SequencePadding(target_padding=self._char_table.sentinel)
-        )
-
-        from data.preprocessing import StreamSplit
-        preprocessor.add_step(StreamSplit())
-        #preprocessor.add_step(Normalization())
-        return preprocessor
+        from config import Config
+        conf = Config()
+        self._num_cells = conf.config_dict['attention_model']['cells']
 
     def create_model(self):
         return Seq2SeqWithAttention(self._char_table, self._num_cells,
