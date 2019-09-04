@@ -39,6 +39,34 @@ def visualize_strokes_input(strokes, output_dir='./debug_output'):
         prev_point = (x, y)
 
 
+def visualize_strokes(strokes):
+    for stroke in strokes:
+        print('Points in stroke', len(stroke.points))
+        max_x = max([x for x, y in stroke.points])
+        min_x = min([x for x, y in stroke.points])
+
+        width = max_x - min_x
+
+        max_y = max([y for x, y in stroke.points])
+        min_y = min([y for x, y in stroke.points])
+        height = max_y - min_y
+
+        a = np.zeros((height, width), dtype=np.uint8)
+
+        im = Image.fromarray(a, mode='L')
+
+        canvas = ImageDraw.ImageDraw(im, mode='L')
+        prev_point = None
+        for i, (x, y) in enumerate(stroke.points):
+            x = x - min_x
+            y = y - min_y
+            if prev_point:
+                canvas.line((prev_point, (x, y)), width=4, fill=255)
+            prev_point = (x, y)
+        #im.show()
+        #input('Press any key')
+
+
 def visualize_signal(signal):
     indices = list(range(len(signal)))
     plt.scatter(indices, signal)
@@ -64,8 +92,5 @@ for in_seq, out_seq in source.get_sequences():
     out_seqs.append(out_seq)
     break
 
-processors = [pre_processor2, pre_processor3]
-for processor in processors:
-    processor.fit(in_seqs, out_seqs)
-    processed_seq, _ = processor.process(in_seqs, out_seqs)
-    visualize_signal(processed_seq[0])
+for strokes in in_seqs:
+    visualize_strokes(strokes)

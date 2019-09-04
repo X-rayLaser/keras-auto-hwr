@@ -10,13 +10,13 @@ from keras.optimizers import RMSprop
 from models.base import BaseBeamSearch
 
 
-class SequenceToSequenceTrainer(BaseModel):
-    def __init__(self, char_table, encoding_size=128):
-        self._char_table = char_table
+class BaseSeq2seq(BaseModel):
+    def __init__(self, encoding_size=128, input_channels=1, output_channels=1):
         self._encoding_size = encoding_size
+        self._input_channels = input_channels
+        self._output_channels = output_channels
 
         self._encoder = self.encoder_model()
-        self._before = self._encoder.get_weights()
         self._decoder = self.decoder_model()
 
         encoder_inputs = self._encoder.input
@@ -27,13 +27,7 @@ class SequenceToSequenceTrainer(BaseModel):
 
         self._model = Model([encoder_inputs, decoder_inputs], output)
 
-    def encoder_model(self):
-        encoder_inputs = Input(shape=(None, 1))
-
-        rnn = SimpleRNN(units=self._encoding_size // 2, return_state=True)
-        rnn = Bidirectional(rnn)
-
-        x = encoder_inputs
+    def feature_extractor(self, x):
         x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
         x = MaxPool1D(pool_size=2)(x)
         x = Conv1D(filters=12, kernel_size=3, padding='same', activation='relu')(x)
@@ -46,6 +40,18 @@ class SequenceToSequenceTrainer(BaseModel):
         x = Conv1D(filters=1, kernel_size=1, activation='relu')(x)
         x = Reshape(target_shape=(-1, 1))(x)
 
+        return x
+
+    def encoder_model(self):
+        encoder_inputs = Input(shape=(None, self._input_channels))
+
+        rnn = SimpleRNN(units=self._encoding_size // 2, return_state=True)
+        rnn = Bidirectional(rnn)
+
+        x = encoder_inputs
+
+        x = self.feature_extractor(x)
+
         states_seq, forward_state, backward_state = rnn(x)
         encoder_state = Concatenate()([forward_state, backward_state])
 
@@ -54,7 +60,7 @@ class SequenceToSequenceTrainer(BaseModel):
     def decoder_model(self):
         decoder_states = self._encoding_size
 
-        decoder_inputs = Input(shape=(None, len(self._char_table)))
+        decoder_inputs = Input(shape=(None, self._output_channels))
         initial_state = Input(shape=(self._encoding_size,))
 
         rnn = SimpleRNN(units=decoder_states,
@@ -63,7 +69,7 @@ class SequenceToSequenceTrainer(BaseModel):
                         return_state=True,
                         name='decoder_first_layer')
 
-        densor = TimeDistributed(Dense(units=len(self._char_table),
+        densor = TimeDistributed(Dense(units=self._output_channels,
                                        activation='softmax'))
 
         x = decoder_inputs
@@ -79,6 +85,41 @@ class SequenceToSequenceTrainer(BaseModel):
         self._encoder.load_weights(os.path.join(path, 'encoder.h5'))
         self._decoder.load_weights(os.path.join(path, 'decoder.h5'))
 
+
+class Seq2seqAutoencoder(BaseSeq2seq):
+    def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
+        #estimator = self.get_performance_estimator(8)
+
+        class MyCallback(Callback):
+            def on_epoch_end(self, epoch, logs=None):
+                if epoch % 5 == 0:
+                    estimator.estimate(train_gen)
+                    print()
+                    estimator.estimate(val_gen)
+
+        self._model.compile(optimizer=RMSprop(lr=lr), loss='mean_squared_error',
+                            metrics=['mse'])
+        self._model.summary()
+        self._model.fit_generator(callbacks=[], *args, **kwargs)
+
+
+class SequenceToSequenceTrainer(BaseSeq2seq):
+    def __init__(self, char_table, encoding_size=128, input_channels=2):
+        super().__init__(encoding_size, input_channels=input_channels,
+                         output_channels=len(char_table))
+        self._char_table = char_table
+
+        self._encoder = self.encoder_model()
+        self._decoder = self.decoder_model()
+
+        encoder_inputs = self._encoder.input
+        decoder_inputs = self._decoder.input[0]
+
+        state_vector = self._encoder(encoder_inputs)
+        output, _ = self._decoder([decoder_inputs, state_vector])
+
+        self._model = Model([encoder_inputs, decoder_inputs], output)
+
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
         estimator = self.get_performance_estimator(8)
 
@@ -93,13 +134,10 @@ class SequenceToSequenceTrainer(BaseModel):
                             metrics=['accuracy'])
         self._model.summary()
         self._model.fit_generator(callbacks=[MyCallback()], *args, **kwargs)
-        for i in range(len(self._before)):
-            dif = self._before[i] - self._encoder.get_weights()[i]
-            print('difference', dif.mean(), dif.std())
 
     def get_inference_model(self):
         return SequenceToSequencePredictor(self._encoder, self._decoder,
-                                           self._char_table)
+                                           self._char_table, self._input_channels)
 
     def get_performance_estimator(self, num_trials):
         return Seq2seqMetric(self.get_inference_model(), num_trials)
@@ -122,17 +160,19 @@ class Seq2SeqSearch(BaseBeamSearch):
 
 
 class SequenceToSequencePredictor:
-    def __init__(self, encoder, decoder, char_table):
+    def __init__(self, encoder, decoder, char_table, channels):
         self._encoder = encoder
         self._decoder = decoder
         self._char_table = char_table
+        self._channels = channels
 
     @property
     def char_table(self):
         return self._char_table
 
     def predict(self, hand_writing):
-        hand_writing = hand_writing.reshape(1, hand_writing.shape[0], 1)
+        hand_writing = hand_writing.reshape(1, hand_writing.shape[0],
+                                            self._channels)
         state = self._encoder.predict(hand_writing)
 
         beam_search = Seq2SeqSearch(initial_state=state,

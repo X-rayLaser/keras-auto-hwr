@@ -118,7 +118,7 @@ class BaseFactory:
         conf = Config()
         config_dict = conf.config_dict
 
-        preprocessor = PreProcessor(self._char_table)
+        preprocessor = PreProcessor()
 
         for entry in config_dict['preprocessors']:
             step_class_name = entry['name']
@@ -152,19 +152,19 @@ class Seq2seqFactory(BaseFactory):
         super().__init__(*args, **kwargs)
 
     def training_generator(self):
-        return DataSetGenerator(self._train_iter, self._char_table, self._preprocessor)
+        return DataSetGenerator(self._train_iter, self._char_table, self._preprocessor, channels=2)
 
     def validation_generator(self):
         return DataSetGenerator(self._val_iter,
-                                self._char_table, self._preprocessor)
+                                self._char_table, self._preprocessor, channels=2)
 
     def test_generator(self):
         return DataSetGenerator(self._test_iter,
-                                self._char_table, self._preprocessor)
+                                self._char_table, self._preprocessor, channels=2)
 
     def create_model(self):
         from models.seq2seq import SequenceToSequenceTrainer
-        return SequenceToSequenceTrainer(self._char_table)
+        return SequenceToSequenceTrainer(self._char_table, input_channels=2)
 
 
 class AttentionalSeq2seqFactory(BaseFactory):

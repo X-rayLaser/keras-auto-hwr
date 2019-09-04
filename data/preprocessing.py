@@ -225,9 +225,8 @@ class Normalization(ProcessingStep):
 
 
 class PreProcessor:
-    def __init__(self, char_table):
+    def __init__(self):
         self._steps = []
-        self._char_table = char_table
 
     def add_step(self, step):
         self._steps.append(step)
