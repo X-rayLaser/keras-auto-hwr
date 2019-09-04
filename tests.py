@@ -1,4 +1,4 @@
-from data import CharacterTable
+from data.char_table import CharacterTable
 from sources.preloaded import PreLoadedSource
 from sources.iam_online import RawIterator, RandomOrderIterator
 import numpy as np

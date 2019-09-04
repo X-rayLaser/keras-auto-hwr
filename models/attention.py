@@ -82,7 +82,7 @@ class EncoderSpec:
 
 
 class Seq2SeqWithAttention(BaseModel):
-    def __init__(self, char_table, encoding_size, Tx, Ty):
+    def __init__(self, char_table, encoding_size, Tx, Ty, channels):
 
         def mysoftmax(x):
             return softmax(x, axis=1)
@@ -102,11 +102,11 @@ class Seq2SeqWithAttention(BaseModel):
 
         self._encoder_spec.add_conv_layer(1, 1)
 
-        encoder, activations_len = self.encoder_model(Tx, encoding_size)
+        encoder, activations_len = self.encoder_model(Tx, channels, encoding_size)
         attention = self.attention_model(activations_len, mysoftmax)
         decoder = self.one_step_decoder(attention, activations_len)
 
-        encoder_inputs = Input(shape=(Tx, 1))
+        encoder_inputs = Input(shape=(Tx, channels))
         decoder_initial_state = Input(shape=(self.encoding_size,))
         initial_y = Input(shape=(1, len(self._char_table)))
         reshapor = Reshape(target_shape=(1, len(self._char_table)))
@@ -172,8 +172,8 @@ class Seq2SeqWithAttention(BaseModel):
         alphas = attention_softmax(v)
         return Model(inputs=[previous_state, activations], output=alphas)
 
-    def encoder_model(self, Tx, encoding_size):
-        encoder_inputs = Input(shape=(Tx, 1))
+    def encoder_model(self, Tx, channels, encoding_size):
+        encoder_inputs = Input(shape=(Tx, channels))
         x = encoder_inputs
         # x = Dropout(0.05)(x)
         x = self._encoder_spec.get_graph(x)
@@ -207,9 +207,9 @@ class Seq2SeqWithAttention(BaseModel):
                     print()
                     estimator.estimate(val_gen)
 
-        callbacks = [MyCallback(), debug]
+        callbacks = [MyCallback()]
         self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
-                            metrics=['accuracy'])
+                            metrics=['categorical_crossentropy'])
         self._model.fit_generator(callbacks=callbacks, *args, **kwargs)
 
     def get_inference_model(self):
@@ -252,7 +252,6 @@ class BeamSearchPredictor:
 
     def predict(self, inputs):
         X, initial_state, initial_y = inputs
-        X = X.reshape(1, X.shape[1], 1)
 
         activations = self._encoder.predict(X)
 

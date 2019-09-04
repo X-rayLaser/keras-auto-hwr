@@ -4,3 +4,4 @@ Keras
 Pillow
 scikit-image
 nltk
+matplotlib

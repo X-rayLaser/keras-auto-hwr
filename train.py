@@ -1,4 +1,5 @@
-from data import CharacterTable, Seq2seqFactory, AttentionalSeq2seqFactory
+from data.factories import Seq2seqFactory, AttentionalSeq2seqFactory
+from data.char_table import CharacterTable
 from sources.compiled import CompilationSource
 
 
@@ -8,7 +9,7 @@ def train(data_path, max_examples, lrate, epochs):
 
     source = CompilationSource(data_path)
 
-    factory = AttentionalSeq2seqFactory(num_cells=128,
+    factory = AttentionalSeq2seqFactory(num_cells=32,
                                         data_source=source,
                                         char_table=char_table,
                                         num_examples=max_examples,

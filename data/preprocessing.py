@@ -54,8 +54,13 @@ class DeltaSignal(ProcessingStep):
         input_seqs = []
 
         for i in range(len(hand_writings)):
-            heights = hand_writings[i]
-            input_seqs.append(self.to_deltas(heights))
+            points = hand_writings[i]
+            xs = [x for x, y in points]
+            ys = [y for x, y in points]
+
+            xs = self.to_deltas(xs)
+            ys = self.to_deltas(ys)
+            input_seqs.append(xs + ys)
 
         return input_seqs, transcriptions
 
@@ -180,6 +185,22 @@ class PrincipalComponentAnalysis(ProcessingStep):
 
     def process(self, hand_writings, transcriptions):
         pass
+
+
+class StreamSplit(ProcessingStep):
+    def fit(self, hand_writings, transcriptions):
+        pass
+
+    def process(self, hand_writings, transcriptions):
+        inp_seqs = []
+        for points in hand_writings:
+            if len(points) % 2 != 0:
+                points = points[:-1]
+
+            it = iter(points)
+            inp_seqs.append(list(zip(it, it)))
+
+        return inp_seqs, transcriptions
 
 
 class Normalization(ProcessingStep):
