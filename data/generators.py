@@ -44,8 +44,8 @@ class AutoEncoderGenerator(BaseGenerator):
         x = np.array(seqs_in)
 
         x = x.reshape((-1, x.shape[1], 2))
-        x_noisy = x + np.random.normal(loc=0, scale=10, size=x.shape)
-
+        #x_noisy = x + np.random.normal(loc=0, scale=10, size=x.shape)
+        x_noisy = x
         y_in = x[:, :-1, :]
         y_out = x[:, 1:, :]
 

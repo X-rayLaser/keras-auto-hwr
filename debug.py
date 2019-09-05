@@ -91,6 +91,3 @@ for in_seq, out_seq in source.get_sequences():
     in_seqs.append(in_seq)
     out_seqs.append(out_seq)
     break
-
-for strokes in in_seqs:
-    visualize_strokes(strokes)

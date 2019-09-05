@@ -11,23 +11,35 @@ char_table = CharacterTable(charset)
 source = CompilationSource('./compiled/data.json')
 
 
-def fetch_strokes(source):
+def fetch_strokes(source, num_strokes):
     cropped_strokes = []
     dummy_out = []
-    for strokes, _ in source.get_sequences():
+    for strokes, text in source.get_sequences():
         for stroke in strokes:
+            if len(cropped_strokes) > num_strokes:
+                return PreLoadedSource(cropped_strokes, dummy_out)
             max_x = max([x for x, y in stroke.points])
             min_x = min([x for x, y in stroke.points])
 
-            width = max_x - min_x
-
             max_y = max([y for x, y in stroke.points])
             min_y = min([y for x, y in stroke.points])
+
+            width = max_x - min_x
             height = max_y - min_y
 
-            points = []
+            max_side = max(width, height) + 0.00001
+            if max_side < 1:
+                continue
+
+            points = [(0, 0)]
             for x, y in stroke.points:
-                points.append((x - min_x, y - min_y))
+                x = (x - min_x) / max_side
+                y = (y - min_y) / max_side
+                points.append((x, y))
+
+            if len(points) > 20:
+                points = points[::10]
+            points.append((0, 0))
 
             cropped_strokes.append(points)
             dummy_out.append('')
@@ -35,7 +47,7 @@ def fetch_strokes(source):
     return PreLoadedSource(cropped_strokes, dummy_out)
 
 
-strokes_source = fetch_strokes(source)
+strokes_source = fetch_strokes(source, 0)
 
 from data.preprocessing import PreProcessor
 
@@ -46,9 +58,9 @@ val_gen = train_gen
 batch_size = 1
 lrate = 0.001
 validation_steps = 14
-epochs = 100
+epochs = 1001
 
-auto_encoder = Seq2seqAutoencoder(input_channels=2, output_channels=2)
+auto_encoder = Seq2seqAutoencoder(encoding_size=128, input_channels=2, output_channels=2)
 auto_encoder.fit_generator(
     lrate,
     train_gen,
