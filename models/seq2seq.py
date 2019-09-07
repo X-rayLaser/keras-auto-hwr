@@ -1,7 +1,7 @@
 import os
 
 from keras import Model, Input
-from keras.layers import SimpleRNN, Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense, GRU
+from keras.layers import SimpleRNN, Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense, GRU, CuDNNGRU
 
 from models import BaseModel
 from estimate import Seq2seqMetric
@@ -46,7 +46,7 @@ class BaseSeq2seq(BaseModel):
     def encoder_model(self):
         encoder_inputs = Input(shape=(None, self._input_channels))
 
-        rnn = SimpleRNN(units=self._encoding_size // 2, return_state=True)
+        rnn = GRU(units=self._encoding_size // 2, return_state=True)
         rnn = Bidirectional(rnn)
 
         x = encoder_inputs
@@ -67,7 +67,7 @@ class BaseSeq2seq(BaseModel):
         decoder_inputs = Input(shape=(None, self._output_channels))
         initial_state = Input(shape=(self._encoding_size,))
 
-        rnn = SimpleRNN(units=decoder_states,
+        rnn = GRU(units=decoder_states,
                         input_shape=(None, self._encoding_size),
                         return_sequences=True,
                         return_state=True,
@@ -77,6 +77,7 @@ class BaseSeq2seq(BaseModel):
                                        activation=self.decoder_activation()))
 
         x = decoder_inputs
+
         x, state = rnn(x, initial_state=initial_state)
         decoder_output = densor(x)
         return Model([decoder_inputs, initial_state], [decoder_output, state])
@@ -92,31 +93,28 @@ class BaseSeq2seq(BaseModel):
 
 class Seq2seqAutoencoder(BaseSeq2seq):
     def feature_extractor(self, x):
-        x = Conv1D(filters=6, kernel_size=3, padding='same', activation='relu')(x)
-
         return x
 
     def decoder_activation(self):
-        return 'sigmoid'
+        return None
+
+    def get_encoder(self):
+        return self._encoder
 
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
-        predictor = AutoEncoderPredictor(self._encoder, self._decoder, channels=2)
+        predictor = self.get_inference_model()
 
         class MyCallback(Callback):
             def on_epoch_end(self, epoch, logs=None):
-                num_trials = 1
-                if epoch % 10 == 0 and epoch > 0:
+                num_trials = 10
+                if epoch % 2 == 0 and epoch > 0:
                     counter = 0
                     for [x_noisy, y_in], y_out in val_gen.get_examples(batch_size=1):
                         if counter > num_trials:
                             return
 
-                        print(y_in[0])
-                        print(y_out[0])
-
                         noisy_points = []
                         for v in x_noisy[0]:
-                            print(v)
                             noisy_points.append((v[0], v[1]))
 
                         noisy_points = noisy_points[1:-1]
@@ -127,10 +125,15 @@ class Seq2seqAutoencoder(BaseSeq2seq):
                         counter += 1
                         input('Enter any key')
 
+        from keras.optimizers import Adam
         self._model.compile(optimizer=RMSprop(lr=lr), loss='mean_squared_error',
                             metrics=['mse'])
-        self._model.summary()
-        self._model.fit_generator(callbacks=[MyCallback()], *args, **kwargs)
+
+        callbacks = []
+        self._model.fit_generator(callbacks=callbacks, *args, **kwargs)
+
+    def get_inference_model(self):
+        return AutoEncoderPredictor(self._encoder, self._decoder, channels=2)
 
 
 class SequenceToSequenceTrainer(BaseSeq2seq):
@@ -150,6 +153,9 @@ class SequenceToSequenceTrainer(BaseSeq2seq):
 
         self._model = Model([encoder_inputs, decoder_inputs], output)
 
+    def feature_extractor(self, x):
+        return x
+
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
         estimator = self.get_performance_estimator(8)
 
@@ -162,7 +168,7 @@ class SequenceToSequenceTrainer(BaseSeq2seq):
 
         self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
                             metrics=['accuracy'])
-        self._model.summary()
+
         self._model.fit_generator(callbacks=[MyCallback()], *args, **kwargs)
 
     def get_inference_model(self):
@@ -224,11 +230,11 @@ class AutoEncoderPredictor:
         prev_y = np.zeros(2).reshape((1, 1, self._channels))
 
         while True:
-            prev_y, next_state = self._decoder.predict([prev_y, prev_state])
+            prev_y, prev_state = self._decoder.predict([prev_y, prev_state])
             p = prev_y[0][-1]
             print(p)
             points.append(p.tolist())
-            if len(points) > 300:
+            if len(points) > 100:
                 break
 
         return points

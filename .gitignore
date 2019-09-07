@@ -1,4 +1,6 @@
 datasets/
+weights/
+samples/
 venv/
 compiled/
 *.pyc

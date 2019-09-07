@@ -82,6 +82,42 @@ class LinesSource(BaseSource):
         return len(self._source)
 
 
+from sources.preloaded import PreLoadedSource
+
+
+def fetch_strokes(source, num_strokes):
+    cropped_strokes = []
+    dummy_out = []
+    for strokes, text in source.get_sequences():
+        for stroke in strokes:
+            if len(cropped_strokes) > num_strokes:
+                return PreLoadedSource(cropped_strokes, dummy_out)
+
+            try:
+                deltas = stroke.stroke_to_points()
+            except BadStrokeException:
+                continue
+
+            cropped_strokes.append(deltas)
+            dummy_out.append('')
+
+    return PreLoadedSource(cropped_strokes, dummy_out)
+
+
+class StrokesSource(BaseSource):
+    def __init__(self, source, num_strokes):
+        self._source = source
+        self._num_strokes = num_strokes
+        self._preloaded = fetch_strokes(source, num_strokes)
+
+    def get_sequences(self):
+        for line in self._preloaded.get_sequences():
+            yield line
+
+    def __len__(self):
+        return self._num_strokes
+
+
 class WordsSource(BaseSource):
     def __init__(self, source):
         self._source = source
@@ -188,6 +224,48 @@ class Stroke:
 
     def horizontal_distance(self, stroke):
         return self.left_most_x() - stroke.right_most_x()
+
+    def stroke_to_points(self):
+        max_x = max([x for x, y in self.points])
+        min_x = min([x for x, y in self.points])
+
+        max_y = max([y for x, y in self.points])
+        min_y = min([y for x, y in self.points])
+
+        width = max_x - min_x
+        height = max_y - min_y
+
+        max_side = max(width, height) + 0.00001
+        if max_side < 1:
+            raise BadStrokeException()
+
+        points = [(0, 0)]
+        for x, y in self.points:
+            x = (x - min_x) / max_side
+            y = (y - min_y) / max_side
+            points.append((x, y))
+
+        prev_point = (0, 0)
+        deltas = []
+
+        for p in points:
+            x, y = p
+            dx = x - prev_point[0]
+            dy = y - prev_point[1]
+
+            deltas.append((dx, dy))
+
+            prev_point = p
+
+        points.append((0, 0))
+
+        deltas.append((0, 0))
+
+        return deltas
+
+
+class BadStrokeException(Exception):
+    pass
 
 
 class StrokeLine:

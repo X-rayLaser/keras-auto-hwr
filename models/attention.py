@@ -1,7 +1,7 @@
 from keras import Input, Model
 from keras.activations import softmax
 from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector,\
-    Concatenate, Activation, Dot, Reshape
+    Concatenate, Activation, Dot, Reshape, CuDNNGRU
 
 from models import BaseModel
 from keras.optimizers import RMSprop
@@ -49,7 +49,7 @@ class Seq2SeqWithAttention(BaseModel):
 
         model = Model(inputs=[encoder_inputs, decoder_initial_state, initial_y],
                       outputs=outputs)
-        model.summary()
+
         self._model = model
 
         self._encoder_model = encoder
@@ -60,7 +60,7 @@ class Seq2SeqWithAttention(BaseModel):
 
         decoder_initial_state = Input(shape=(self.encoding_size,))
         initial_y = Input(shape=(1, len(self._char_table)))
-        decoder_rnn = SimpleRNN(units=self.encoding_size, return_state=True)
+        decoder_rnn = CuDNNGRU(units=self.encoding_size, return_state=True)
         densor = Dense(units=len(self._char_table), activation=self._mysoftmax)
         attention_dotor = Dot(axes=1)
         multi_modal_concatenator = Concatenate()
@@ -99,12 +99,13 @@ class Seq2SeqWithAttention(BaseModel):
     def encoder_model(self, Tx, channels, encoding_size):
         encoder_inputs = Input(shape=(Tx, channels))
         x = encoder_inputs
-        x = self._encoder_spec.get_graph(x)
-        x = Reshape(target_shape=(-1, 1))(x)
-        encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True)
+        #x = self._encoder_spec.get_graph(x)
+        #x = Reshape(target_shape=(-1, 1))(x)
+        encoder_rnn = CuDNNGRU(units=encoding_size // 2, return_sequences=True, return_state=True)
         encoder_rnn = Bidirectional(encoder_rnn)
         activations, forward_state, backward_state = encoder_rnn(x)
-        activations_len = self._encoder_spec.output_size()
+        #activations_len = self._encoder_spec.output_size()
+        activations_len = self._Tx
 
         return Model(input=encoder_inputs, output=activations), activations_len
 
