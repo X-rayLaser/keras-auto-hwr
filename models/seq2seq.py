@@ -232,7 +232,7 @@ class AutoEncoderPredictor:
         while True:
             prev_y, prev_state = self._decoder.predict([prev_y, prev_state])
             p = prev_y[0][-1]
-            print(p)
+
             points.append(p.tolist())
             if len(points) > 100:
                 break

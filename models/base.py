@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 
 class BaseModel:
@@ -16,6 +17,22 @@ class BaseModel:
 
     def get_performance_estimator(self, num_trials):
         raise NotImplementedError
+
+
+class BaseEncoderDecoder(BaseModel):
+    def get_encoder(self):
+        raise NotImplementedError
+
+    def get_decoder(self):
+        raise NotImplementedError
+
+    def save(self, path):
+        self.get_encoder().save_weights(os.path.join(path, 'encoder.h5'))
+        self.get_decoder().save_weights(os.path.join(path, 'decoder.h5'))
+
+    def load(self, path):
+        self.get_encoder().load_weights(os.path.join(path, 'encoder.h5'))
+        self.get_decoder().load_weights(os.path.join(path, 'decoder.h5'))
 
 
 class BeamCandidate:

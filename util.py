@@ -13,11 +13,14 @@ def scale(points, factor=100):
 
 
 def decode(deltas):
-    points = [(0, 0)]
+    points = []
     for grad in deltas:
         dx, dy = grad
 
-        prev_point = points[-1]
+        if len(points) == 0:
+            prev_point = (0, 0)
+        else:
+            prev_point = points[-1]
         x = prev_point[0] + dx
         y = prev_point[1] + dy
         points.append((x, y))

@@ -1,7 +1,7 @@
 from keras import Input, Model
 from keras.activations import softmax
 from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector,\
-    Concatenate, Activation, Dot, Reshape, CuDNNGRU
+    Concatenate, Activation, Dot, Reshape, CuDNNGRU, Dropout
 
 from models import BaseModel
 from keras.optimizers import RMSprop
@@ -10,6 +10,7 @@ from estimate import AttentionModelMetric
 from keras.callbacks import Callback, ReduceLROnPlateau
 from models.base import BaseBeamSearch
 from models.encoder_spec import EncoderSpec
+from keras.regularizers import l1, l2
 
 
 class Seq2SeqWithAttention(BaseModel):
@@ -60,8 +61,8 @@ class Seq2SeqWithAttention(BaseModel):
 
         decoder_initial_state = Input(shape=(self.encoding_size,))
         initial_y = Input(shape=(1, len(self._char_table)))
-        decoder_rnn = CuDNNGRU(units=self.encoding_size, return_state=True)
-        densor = Dense(units=len(self._char_table), activation=self._mysoftmax)
+        decoder_rnn = SimpleRNN(units=self.encoding_size, return_state=True, kernel_regularizer=l2(0.0001))
+        densor = Dense(units=len(self._char_table), activation=self._mysoftmax, kernel_regularizer=l2(0.0001))
         attention_dotor = Dot(axes=1)
         multi_modal_concatenator = Concatenate()
 
@@ -101,7 +102,8 @@ class Seq2SeqWithAttention(BaseModel):
         x = encoder_inputs
         #x = self._encoder_spec.get_graph(x)
         #x = Reshape(target_shape=(-1, 1))(x)
-        encoder_rnn = CuDNNGRU(units=encoding_size // 2, return_sequences=True, return_state=True)
+        encoder_rnn = SimpleRNN(units=encoding_size // 2, return_sequences=True, return_state=True,
+                                kernel_regularizer=l2(0.001))
         encoder_rnn = Bidirectional(encoder_rnn)
         activations, forward_state, backward_state = encoder_rnn(x)
         #activations_len = self._encoder_spec.output_size()
@@ -125,13 +127,13 @@ class Seq2SeqWithAttention(BaseModel):
 
         class MyCallback(Callback):
             def on_epoch_end(self, epoch, logs=None):
-                if epoch % 50 == 0:
+                if epoch % 10 == 0:
                     estimator.estimate(train_gen)
                     print()
                     estimator.estimate(val_gen)
 
         callbacks = [MyCallback()]
-        self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
+        self._model.compile(optimizer=RMSprop(lr=lr, clipnorm=10, clipvalue=10), loss='categorical_crossentropy',
                             metrics=['categorical_crossentropy'])
         self._model.fit_generator(callbacks=callbacks, *args, **kwargs)
 

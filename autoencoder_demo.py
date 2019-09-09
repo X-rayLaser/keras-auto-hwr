@@ -2,25 +2,58 @@ from util import visualize_stroke
 from models.seq2seq import Seq2seqAutoencoder
 from sources.compiled import CompilationSource
 from sources.iam_online import StrokesSource
+from sources.preloaded import PreLoadedSource
 from data.generators import AutoEncoderGenerator
 from data.preprocessing import PreProcessor
+from train_autoencoder import FeedForwardAutoEncoderGenerator, VanillaAutoEncoder, padded_source
 
 
-def generate(num_trials=10, embedding_size=16):
-    auto_encoder = Seq2seqAutoencoder(encoding_size=embedding_size, input_channels=2,
-                                      output_channels=2)
+def generate(num_trials=10, embedding_size=16, val_gen=True):
+    #auto_encoder = Seq2seqAutoencoder(encoding_size=embedding_size, input_channels=2,
+    #                                  output_channels=2)
+
+    if val_gen:
+        path = './compiled/validation.json'
+    else:
+        path = './compiled/train.json'
+
+    source = CompilationSource(path=path)
+    stroke_source = StrokesSource(source, num_strokes=num_trials)
+
+    #max_len = max([len(seq_in) for seq_in, _ in stroke_source.get_sequences()])
+    max_len = 508
+    stroke_source = padded_source(stroke_source, max_len)
+
+    preprocessor = PreProcessor()
+    #gen = AutoEncoderGenerator(strokes_iterator=stroke_source,
+    #                           pre_processor=preprocessor, channels=2)
+    gen = FeedForwardAutoEncoderGenerator(stroke_source, preprocessor, channels=2)
+    auto_encoder = VanillaAutoEncoder(max_len * 2, embedding_size)
     auto_encoder.load('./weights/auto_encoder')
 
     predictor = auto_encoder.get_inference_model()
 
-    source = CompilationSource(path='./compiled/validation.json')
-    stroke_source = StrokesSource(source, num_strokes=num_trials)
-    preprocessor = PreProcessor()
-    val_gen = AutoEncoderGenerator(strokes_iterator=stroke_source,
-                                   pre_processor=preprocessor, channels=2)
-
     counter = 0
-    for [x_noisy, y_in], y_out in val_gen.get_examples(batch_size=1):
+    for noisy, _ in gen.get_examples(batch_size=1):
+        if counter > num_trials:
+            return
+
+        it = iter(noisy[0].tolist())
+        noisy_points = []
+
+        for x, y in zip(it, it):
+            noisy_points.append((x, y))
+
+        noisy_points = noisy_points[1:-1]
+        x_recovered = predictor.predict(noisy)
+        x_recovered = x_recovered[1:-1]
+        yield noisy_points, x_recovered
+
+        counter += 1
+
+    return
+    counter = 0
+    for [x_noisy, y_in], y_out in gen.get_examples(batch_size=1):
         if counter > num_trials:
             break
 
@@ -42,15 +75,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_trials', type=int, default=128)
     parser.add_argument('--embedding_size', type=int, default=16)
-    parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--save_path', type=str, default='')
+    parser.add_argument('--val_gen', type=bool, default=True)
 
     args = parser.parse_args()
 
     noisy_dir = os.path.join(args.save_path, 'noisy')
     recovered_dir = os.path.join(args.save_path, 'recovered')
     for i, (noisy, recovered) in enumerate(generate(args.num_trials,
-                                                    args.embedding_size)):
+                                                    args.embedding_size,
+                                                    True)):
         noisy_image = visualize_stroke(noisy)
         recovered_image = visualize_stroke(recovered)
         if args.save_path:
