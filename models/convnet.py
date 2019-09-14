@@ -1,5 +1,6 @@
 from models.base import BaseEncoderDecoder
-from keras.layers import Input, Conv1D, MaxPool1D, Dense, Flatten, Dropout
+from keras.layers import Input, Conv1D, MaxPool1D, Dense, Flatten, Dropout, GRU, Bidirectional
+from keras.regularizers import l1, l2
 from keras.models import Model
 import numpy as np
 
@@ -16,16 +17,17 @@ class ConvolutionalRecognizer(BaseEncoderDecoder):
         x = MaxPool1D()(x)
 
         x = Flatten()(x)
+        x = Dense(units=256, activation='relu', kernel_regularizer=l2(0.01))(x)
         x = Dropout(0.25)(x)
-        embedding = Dense(units=embedding_size, activation='relu')(x)
+        embedding = Dense(units=embedding_size, activation='relu', kernel_regularizer=l2(0.01))(x)
 
         self._encoder = Model(input=inp, output=embedding)
 
         decoder_inp = Input(shape=(embedding_size,))
 
         x = decoder_inp
-        x = Dense(units=embedding_size, activation='relu')(x)
-        y_pred = Dense(units=len(vocab), activation='softmax')(x)
+        x = Dropout(0.125)(x)
+        y_pred = Dense(units=len(vocab), activation='softmax', kernel_regularizer=l2(0.01))(x)
 
         self._decoder = Model(input=decoder_inp, output=y_pred)
 
@@ -43,7 +45,7 @@ class ConvolutionalRecognizer(BaseEncoderDecoder):
 
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
         from keras.callbacks import Callback
-        from keras.optimizers import RMSprop
+        from keras.optimizers import RMSprop, Adam
 
         predictor = self.get_inference_model()
 
@@ -75,7 +77,7 @@ class ConvolutionalRecognizer(BaseEncoderDecoder):
                         counter += 1
 
         callbacks = [MyCallback()]
-        self._model.compile(optimizer=RMSprop(lr=lr), loss='categorical_crossentropy',
+        self._model.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy',
                             metrics=['categorical_crossentropy'])
         self._model.fit_generator(callbacks=callbacks, *args, **kwargs)
 

@@ -9,12 +9,12 @@ from sources.iam_online import StrokesSource, BadStrokeException
 from train_autoencoder import VanillaAutoEncoder, FeedForwardAutoEncoderGenerator, padded_source
 
 
-lrate = 0.001
+lrate = 0.0001
 validation_steps = 10
 feature_extraction_epochs = 2
 embedding_size = 8
 
-num_train_examples = 1024
+num_train_examples = 4096
 num_val_examples = 128
 end2end_epochs = 1000
 encoding_size = 16
@@ -44,8 +44,7 @@ def get_embeddings(encoder, source, num_examples):
     max_transciption_len = 0
 
     for strokes, transcription in source.get_sequences():
-        transcription = transcription.split(' ')[-1]
-        print(transcription)
+        #transcription = transcription.split(' ')[-1]
         if len(embeddings) > num_examples:
             break
         embedding_seq = []
@@ -66,7 +65,8 @@ def get_embeddings(encoder, source, num_examples):
             except BadStrokeException:
                 pass
 
-        if len(embedding_seq) > 1:
+        embedding_seq = embedding_seq[int(round(len(embedding_seq) / 2)):]
+        if len(embedding_seq) > 4:
             max_emb_len = max(max_emb_len, len(embedding_seq))
             max_transciption_len = max(max_transciption_len, len(transcription))
             embeddings.append(embedding_seq)
@@ -95,50 +95,54 @@ def pad_sequences(embeddings, transcriptions, max_emb_len, max_transcription_len
     return padded_embeddings, padded_transcriptions
 
 
-from data.generators import DataSetGenerator, AttentionModelDataGenerator
+if __name__ == '__main__':
 
-preprocessor = PreProcessor()
+    from data.generators import DataSetGenerator, AttentionModelDataGenerator
 
-encoder = auto_encoder.get_encoder()
+    preprocessor = PreProcessor()
 
-train_embeddings, train_transcriptions, max_emb_len, max_transcription_len = get_embeddings(encoder, compilation_train_source, num_train_examples)
+    encoder = auto_encoder.get_encoder()
 
-train_embeddings, train_transcriptions = pad_sequences(train_embeddings, train_transcriptions, max_emb_len, max_transcription_len)
+    train_embeddings, train_transcriptions, max_emb_len, max_transcription_len = get_embeddings(encoder, compilation_train_source, num_train_examples)
 
-val_embeddings, val_transcriptions, _, _ = get_embeddings(encoder, compilation_validation_source, num_val_examples)
+    train_embeddings, train_transcriptions = pad_sequences(train_embeddings, train_transcriptions, max_emb_len, max_transcription_len)
 
-val_embeddings, val_transcriptions = pad_sequences(val_embeddings, val_transcriptions, max_emb_len, max_transcription_len)
+    val_embeddings, val_transcriptions, _, _ = get_embeddings(encoder, compilation_validation_source, num_val_examples)
 
-preloaded_train = PreLoadedSource(train_embeddings, train_transcriptions)
-preloaded_val = PreLoadedSource(val_embeddings, val_transcriptions)
+    val_embeddings, val_transcriptions = pad_sequences(val_embeddings, val_transcriptions, max_emb_len, max_transcription_len)
 
-Tx = max_emb_len
-Ty = max_transcription_len + 1
+    preloaded_train = PreLoadedSource(train_embeddings, train_transcriptions)
+    preloaded_val = PreLoadedSource(val_embeddings, val_transcriptions)
 
-#train_gen = AttentionModelDataGenerator(preloaded_train, char_table, preprocessor, Tx, Ty, encoder_states=encoding_size, channels=embedding_size)
-#val_gen = AttentionModelDataGenerator(preloaded_val, char_table, preprocessor, Tx, Ty, encoder_states=encoding_size, channels=embedding_size)
+    Tx = max_emb_len
+    Ty = max_transcription_len + 1
 
-#from models.attention import Seq2SeqWithAttention
+    print('TX', Tx)
 
-#trainer = Seq2SeqWithAttention(char_table, encoding_size=encoding_size, Tx=Tx, Ty=Ty, channels=embedding_size)
+    #train_gen = AttentionModelDataGenerator(preloaded_train, char_table, preprocessor, Tx, Ty, encoder_states=encoding_size, channels=embedding_size)
+    #val_gen = AttentionModelDataGenerator(preloaded_val, char_table, preprocessor, Tx, Ty, encoder_states=encoding_size, channels=embedding_size)
 
-batch_size = 16
-from models.convnet import ConvolutionalRecognizer, ConvNetGenerator, Vocabulary
+    #from models.attention import Seq2SeqWithAttention
 
-transcriptions = []
-for _, transcription in compilation_train_source.get_sequences():
-    transcriptions.append(transcription)
+    #trainer = Seq2SeqWithAttention(char_table, encoding_size=encoding_size, Tx=Tx, Ty=Ty, channels=embedding_size)
 
-vocab = Vocabulary(transcriptions, max_size=1000)
-print('vocab len', len(vocab))
+    batch_size = 16
+    from models.convnet import ConvolutionalRecognizer, ConvNetGenerator, Vocabulary
 
-trainer = ConvolutionalRecognizer(vocab, Tx, channels=embedding_size, embedding_size=16)
+    transcriptions = []
+    for _, transcription in compilation_train_source.get_sequences():
+        transcriptions.append(transcription)
 
-train_gen = ConvNetGenerator(vocab, preloaded_train, preprocessor, channels=embedding_size)
-val_gen = ConvNetGenerator(vocab, preloaded_val, preprocessor, channels=embedding_size)
+    vocab = Vocabulary(transcriptions, max_size=1500)
+    print('vocab len', len(vocab))
 
-trainer.fit_generator(lrate, train_gen, val_gen, train_gen.get_examples(batch_size=batch_size),
-                      steps_per_epoch=int(len(train_gen) / batch_size) + 1,
-                      validation_data=val_gen.get_examples(batch_size),
-                      validation_steps=validation_steps,
-                      epochs=end2end_epochs)
+    trainer = ConvolutionalRecognizer(vocab, Tx, channels=embedding_size, embedding_size=128)
+
+    train_gen = ConvNetGenerator(vocab, preloaded_train, preprocessor, channels=embedding_size)
+    val_gen = ConvNetGenerator(vocab, preloaded_val, preprocessor, channels=embedding_size)
+
+    trainer.fit_generator(lrate, train_gen, val_gen, train_gen.get_examples(batch_size=batch_size),
+                          steps_per_epoch=int(len(train_gen) / batch_size) + 1,
+                          validation_data=val_gen.get_examples(batch_size),
+                          validation_steps=validation_steps,
+                          epochs=end2end_epochs)
