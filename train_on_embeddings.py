@@ -19,8 +19,7 @@ num_val_examples = 128
 end2end_epochs = 1000
 encoding_size = 16
 
-charset = ''.join([chr(i) for i in range(32, 128)])
-char_table = CharacterTable(charset)
+char_table = CharacterTable()
 
 
 compilation_train_source = CompilationSource('./compiled/train.json')

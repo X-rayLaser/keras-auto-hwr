@@ -1,8 +1,18 @@
 class CharacterTable:
-    def __init__(self, corpus):
-        charset = set(corpus + self.sentinel + self.start)
-        self._char_to_index = dict((ch, index) for index, ch in enumerate(charset))
-        self._index_to_char = dict((v, k) for k, v in self._char_to_index.items())
+    def __init__(self):
+        index_to_char = {}
+        char_to_index = {}
+
+        first_char = 32
+        last_char = 127
+        for code in range(first_char, last_char + 1):
+            ch = chr(code)
+            index = code - first_char
+            index_to_char[index] = ch
+            char_to_index[ch] = index
+
+        self._char_to_index = char_to_index
+        self._index_to_char = index_to_char
 
     def save(self, path):
         import json

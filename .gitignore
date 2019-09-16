@@ -3,6 +3,7 @@ weights/
 samples/
 venv/
 compiled/
+logs/
 *.pyc
 \.idea/
 tests.py
