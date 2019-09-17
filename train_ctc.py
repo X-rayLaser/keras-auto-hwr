@@ -1,4 +1,4 @@
-from keras.layers import SimpleRNN, LSTM, Bidirectional, CuDNNLSTM, Dense, TimeDistributed, Input, Lambda, GRU, Conv1D, Reshape, MaxPool1D
+from keras.layers import SimpleRNN, LSTM, Bidirectional, CuDNNLSTM, Dense, TimeDistributed, Input, Lambda, GRU, Conv1D, Reshape, MaxPool1D, Softmax
 from keras.models import Sequential, Model
 from data.generators import BaseGenerator
 from sources.preloaded import PreLoadedSource
@@ -10,7 +10,6 @@ from keras.optimizers import Adam, RMSprop, SGD
 import numpy as np
 from sources.compiled import CompilationSource
 import tensorflow as tf
-import warpctc_tensorflow
 
 
 def points_source(source, num_examples):
@@ -92,30 +91,104 @@ def seqlen(seq):
     return len(s)
 
 
-class CTCTrainer:
-    def __init__(self, model):
-        self._model = model
+class BaseCtcModel:
+    def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=150):
+        self.graph_input = Input(shape=(None, embedding_size))
+        self.rnn = Bidirectional(
+            recurrent_layer(units=num_cells, input_shape=(None, embedding_size),
+                            return_sequences=True)
+        )
+        self.densor = TimeDistributed(Dense(units=num_labels, activation=None))
 
-    def fit_generator(self, train_gen, val_gen):
-        model = self._model
-        model.fit_generator(train_gen.get_examples(batch_size=batch_size),
-                            steps_per_epoch=int(len(train_gen) / batch_size),
-                            epochs=args.epochs,
-                            validation_data=val_gen.get_examples(batch_size),
-                            validation_steps=validation_steps,
-                            callbacks=[MyCallback(), TensorBoard()])
+        self.num_labels = num_labels
+
+    def model_inputs(self):
+        labels = Input(name='the_labels',
+                       shape=[None], dtype='float32')
+        input_length = Input(name='input_length', shape=[1], dtype='int64')
+        label_length = Input(name='label_length', shape=[1], dtype='int64')
+        return self.graph_input, labels, input_length, label_length
 
 
-class WarpTrainer(CTCTrainer):
-    def fit_generator(self, train_gen, val_gen):
-        pass
+class WarpCtcModel:
+    def __init__(self, recurrent_layer, num_labels, embedding_size):
+        import warpctc_tensorflow
 
+        self.num_labels = num_labels
+        self.graph_input = Input(shape=(None, embedding_size))
+        self.lstm = Bidirectional(recurrent_layer(units=50, input_shape=(None, embedding_size), return_sequences=True))
+        self.densor = TimeDistributed(Dense(units=self.num_labels, activation=None))
+
+        self.input_lengths = tf.placeholder(tf.int32, shape=[None])
+        self.label_lengths = tf.placeholder(tf.int32, shape=[None])
+
+        self.flat_labels = tf.placeholder(tf.int32, shape=[None])
+
+        x = self.graph_input
+        x = self.lstm(x)
+        linear_output = self.densor(x)
+
+        a = Softmax()(linear_output)
+
+        activations = tf.transpose(linear_output, perm=[1, 0, 2])
+
+        self.loss = warpctc_tensorflow.ctc(activations, self.flat_labels, self.label_lengths,
+                                           self.input_lengths, blank_label=self.num_labels-1)
+
+        self.inference_model = Model(input=self.graph_input, output=a)
+
+    def feeds(self, gen, batch_size):
+        for i, (inputs, outputs) in enumerate(gen.get_examples(batch_size)):
+            if i >= len(train_gen):
+                break
+            x, labels, input_length, label_length = inputs
+
+            labels = labels.reshape(label_length[0][0])
+
+            feed_dict = {
+                self.graph_input: x,
+                self.flat_labels: labels,
+                self.label_lengths: label_length[0],
+                self.input_lengths: input_length[0]
+            }
+            yield feed_dict
+
+    def evaluate(self, gen, sess):
+        losses = []
+        for feed_dict in self.feeds(gen, 1):
+            loss_value = sess.run(self.loss, feed_dict=feed_dict)
+            losses.append(loss_value)
+
+        return np.mean(losses)
+
+    def fig_generator(self, train_gen, val_gen, lrate, epochs):
+        optimizer = tf.train.AdamOptimizer(lrate)
+        train = optimizer.minimize(self.loss)
+
+        callback = MyCallback(self.inference_model, train_gen, val_gen)
+
+        with tf.Session() as sess:
+            init = tf.global_variables_initializer()
+            sess.run(init)
+
+            for epoch in range(epochs):
+                print('Epoch', epoch)
+                print()
+
+                for i, feed_dict in enumerate(self.feeds(train_gen, batch_size=1)):
+                    sess.run(train, feed_dict=feed_dict)
+
+                    loss_value = sess.run(self.loss, feed_dict=feed_dict)
+                    print('{} / {}, loss {}'.format(i + 1, len(train_gen), loss_value))
+
+                print('val_loss:', self.evaluate(val_gen, sess))
+                callback.on_epoch_end(epoch)
 
 
 class CtcModel:
-    def __init__(self, num_labels, embedding_size=2, num_cells=50):
+    def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=50):
         inp = Input(shape=(None, embedding_size))
-        lstm = Bidirectional(GRU(units=num_cells, input_shape=(None, embedding_size), return_sequences=True))
+        lstm = Bidirectional(recurrent_layer(units=num_cells, input_shape=(None, embedding_size), return_sequences=True))
         densor = TimeDistributed(Dense(units=num_labels, activation='softmax'))
 
         x = inp
@@ -148,77 +221,50 @@ class CtcModel:
         model = Model(inputs=[self.graph_input, labels, input_length, label_length],
                       outputs=loss_out)
 
-        inference_model = Model(inputs=[self.graph_input, labels, input_length, label_length], output=y_pred)
+        inference_model = Model(inputs=self.graph_input, output=y_pred)
 
         model.compile(optimizer=Adam(lrate), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
         model.summary()
 
         return model, inference_model
 
-    def train_warp(self, train_gen, lrate, epochs):
-        inp = Input(shape=(None, embedding_size))
-        lstm = Bidirectional(GRU(units=50, input_shape=(None, embedding_size), return_sequences=True))
-        densor = TimeDistributed(Dense(units=self.num_labels, activation=None))
-
-        x = inp
-        x = lstm(x)
-        y_pred = densor(x)
-        self.graph_input = inp
-
-        input_lengths = tf.placeholder(tf.int32, shape=[None])
-        label_lengths = tf.placeholder(tf.int32, shape=[None])
-
-        flat_labels = tf.placeholder(tf.int32, shape=[None])
-
-        activations = tf.transpose(y_pred, perm=[1, 0, 2])
-
-        loss = warpctc_tensorflow.ctc(activations, flat_labels, label_lengths,
-                                      input_lengths, blank_label=self.num_labels-1)
-        optimizer = tf.train.AdamOptimizer(lrate)
-        train = optimizer.minimize(loss)
-
-        with tf.Session() as sess:
-            init = tf.global_variables_initializer()
-            sess.run(init)
-
-            for epoch in range(epochs):
-                print('Epoch', epoch)
-                print()
-
-                for i, (inputs, outputs) in enumerate(train_gen.get_examples(1)):
-                    if i >= len(train_gen):
-                        break
-                    x, labels, input_length, label_length = inputs
-
-                    labels = labels.reshape(label_length[0][0])
-
-                    feed_dict = {
-                        self.graph_input: x,
-                        flat_labels: labels,
-                        label_lengths: label_length[0],
-                        input_lengths: input_length[0]
-                    }
-                    sess.run(train, feed_dict=feed_dict)
-
-                    loss_value = sess.run(loss, feed_dict=feed_dict)
-                    print('{} / {}, loss {}'.format(i + 1, len(train_gen), loss_value))
-
 
 def remove_repeates(codes):
-    return sorted(set(codes), key=codes.index)
+    prev = -1
+    res = []
+
+    for code in codes:
+        if code != prev:
+            res.append(code)
+            prev = code
+
+    return res
 
 
 def remove_blanks(codes):
     return [code for code in codes if code != len(char_table)]
 
 
-def predict(inputs):
-    y_hat = inference_model.predict(inputs)[0]
+def predict(inputs, inference_model):
+    x = inputs[0]
+    y_hat = inference_model.predict(x)[0]
 
     codes = []
     for pmf in y_hat:
         index = pmf.argmax()
         codes.append(index)
+
+    try:
+        s = ''
+        for code in codes:
+            try:
+                ch = char_table.decode(code)
+            except:
+                ch = '*'
+            s += ch
+        print(s)
+    except:
+        pass
 
     codes = remove_repeates(codes)
     codes = remove_blanks(codes)
@@ -234,6 +280,12 @@ def predict(inputs):
 
 
 class MyCallback(Callback):
+    def __init__(self, inference_model, train_gen, val_gen):
+        super().__init__()
+        self._inference_model = inference_model
+        self._train_gen = train_gen
+        self._val_gen = val_gen
+
     def demo(self, gen):
         counter = 0
         for inputs, y in gen.get_examples(1):
@@ -250,15 +302,31 @@ class MyCallback(Callback):
                 else:
                     true += ch
 
-            pred = predict(inputs)
+            pred = predict(inputs, self._inference_model)
 
             print(true, '->', pred)
 
     def on_epoch_end(self, epoch, logs=None):
-        if epoch % 10 == 0 and epoch != 0:
-            self.demo(train_gen)
+        if epoch % 20 == 0 and epoch != 0:
+            self.demo(self._train_gen)
             print('val')
-            self.demo(val_gen)
+            self.demo(self._val_gen)
+
+
+def dummy_source():
+    sin = 'HHHH    eee  lll  lll  ooo  ,,,  www   oooo  rrr   lll  ddd'
+    sout = 'Hello, world'
+
+    char_table = CharacterTable()
+
+    codes = [char_table.encode(ch) for ch in sin]
+    from keras.utils import to_categorical
+
+    x = to_categorical(codes, num_classes=len(char_table))
+
+    x = x.reshape(1, len(sin), -1)
+
+    return PreLoadedSource(x, [sout])
 
 
 if __name__ == '__main__':
@@ -269,15 +337,18 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='./compiled')
     parser.add_argument('--max_examples', type=int, default=8)
     parser.add_argument('--lrate', type=float, default=0.001)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=1500)
+    parser.add_argument('--warp', type=bool, default=False)
+    parser.add_argument('--recurrent_layer', type=str, default='SimpleRNN')
 
     args = parser.parse_args()
+    print('training with following options:', args)
     char_table = CharacterTable()
 
     batch_size = 1
     embedding_size = 2
     num_train_examples = args.max_examples
-    num_val_examples = min(8, num_train_examples // 8)
+    num_val_examples = max(1, num_train_examples // 2)
     label_space = len(char_table) + 1
 
     compilation_train_source = CompilationSource(
@@ -289,6 +360,8 @@ if __name__ == '__main__':
     )
     train_source = points_source(compilation_train_source, num_train_examples)
     val_source = points_source(compilation_validation_source, num_val_examples)
+    #train_source = dummy_source()
+    #val_source = dummy_source()
 
     preprocessor = PreProcessor()
     train_gen = CtcGenerator(train_source, preprocessor, channels=embedding_size)
@@ -296,18 +369,24 @@ if __name__ == '__main__':
 
     validation_steps = num_val_examples
 
-    ctc_model = CtcModel(label_space, embedding_size)
+    from keras import layers
 
-    """
-    model, inference_model = ctc_model.compile(lrate=args.lrate)
+    RNN_LAYER = getattr(layers, args.recurrent_layer)
+    print('using layer', str(RNN_LAYER))
 
-    model.fit_generator(train_gen.get_examples(batch_size=batch_size),
-                        steps_per_epoch=int(len(train_gen) / batch_size),
-                        epochs=args.epochs,
-                        validation_data=val_gen.get_examples(batch_size),
-                        validation_steps=validation_steps,
-                        callbacks=[MyCallback(), TensorBoard()])
+    if args.warp:
+        ctc_model = WarpCtcModel(RNN_LAYER, label_space, embedding_size)
+        ctc_model.fig_generator(train_gen, val_gen, args.lrate, args.epochs)
+    else:
+        ctc_model = CtcModel(RNN_LAYER, label_space, embedding_size)
 
-    model.save('./weights/blstm/blstm.h5')
-    """
-    ctc_model.train_warp(train_gen, args.lrate, args.epochs)
+        model, inference_model = ctc_model.compile(lrate=args.lrate)
+
+        model.fit_generator(train_gen.get_examples(batch_size=batch_size),
+                            steps_per_epoch=int(len(train_gen) / batch_size),
+                            epochs=args.epochs,
+                            validation_data=val_gen.get_examples(batch_size),
+                            validation_steps=validation_steps,
+                            callbacks=[MyCallback(inference_model, train_gen, val_gen), TensorBoard()])
+
+        #model.save('./weights/blstm/blstm.h5')
