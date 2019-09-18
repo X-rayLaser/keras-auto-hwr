@@ -1,4 +1,5 @@
 from data.char_table import CharacterTable
+from data.vocab import Vocabulary
 from sources.compiled import CompilationSource
 from data.generators import AutoEncoderGenerator
 from models.seq2seq import Seq2seqAutoencoder
@@ -43,7 +44,6 @@ def get_embeddings(encoder, source, num_examples):
     max_transciption_len = 0
 
     for strokes, transcription in source.get_sequences():
-        #transcription = transcription.split(' ')[-1]
         if len(embeddings) > num_examples:
             break
         embedding_seq = []
@@ -64,7 +64,6 @@ def get_embeddings(encoder, source, num_examples):
             except BadStrokeException:
                 pass
 
-        embedding_seq = embedding_seq[int(round(len(embedding_seq) / 2)):]
         if len(embedding_seq) > 4:
             max_emb_len = max(max_emb_len, len(embedding_seq))
             max_transciption_len = max(max_transciption_len, len(transcription))
@@ -126,7 +125,7 @@ if __name__ == '__main__':
     #trainer = Seq2SeqWithAttention(char_table, encoding_size=encoding_size, Tx=Tx, Ty=Ty, channels=embedding_size)
 
     batch_size = 16
-    from models.convnet import ConvolutionalRecognizer, ConvNetGenerator, Vocabulary
+    from models.convnet import ConvolutionalRecognizer, ConvNetGenerator
 
     transcriptions = []
     for _, transcription in compilation_train_source.get_sequences():

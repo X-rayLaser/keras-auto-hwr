@@ -237,6 +237,7 @@ class Stroke:
 
         max_side = max(width, height) + 0.00001
         if max_side < 1:
+            print('BAD STROKE')
             raise BadStrokeException()
 
         points = [(0, 0)]

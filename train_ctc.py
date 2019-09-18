@@ -10,6 +10,7 @@ from keras.optimizers import Adam, RMSprop, SGD
 import numpy as np
 from sources.compiled import CompilationSource
 import tensorflow as tf
+from sources.iam_online import BadStrokeException
 
 
 def points_source(source, num_examples):
@@ -20,7 +21,10 @@ def points_source(source, num_examples):
         if len(sout) >= num_examples:
             break
         for stroke in strokes:
-            new_seq.extend(stroke.points)
+            try:
+                new_seq.extend(stroke.stroke_to_points())
+            except BadStrokeException:
+                pass
 
         sin.append(new_seq)
         sout.append(t)
@@ -29,6 +33,10 @@ def points_source(source, num_examples):
 
 
 class CtcGenerator(BaseGenerator):
+    def __init__(self, mapping_table, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._mapping = mapping_table
+
     def pad_seqsin(self, seqs_in):
 
         max_len = max(len(seq) for seq in seqs_in)
@@ -37,49 +45,44 @@ class CtcGenerator(BaseGenerator):
         for seq in seqs_in:
             a = list(seq)
             while len(a) < max_len:
-                a.append((0, 0))
+                a.append([0] * self._channels)
             res.append(a)
 
         return res
 
     def prepare_batch(self, seqs_in, seqs_out):
-        seqs_in = self.pad_seqsin(seqs_in)
-        m = len(seqs_in)
-        n = len(seqs_in[0])
-        X = np.array(seqs_in)
+        m = len(seqs_out)
+
+        labels = list(seqs_out)
+
+        label_length = np.zeros([m, 1], dtype=np.int32)
+        input_length = np.zeros([m, 1], dtype=np.int32)
+
+        for i, seq in enumerate(seqs_out):
+            label_length[i, 0] = len(seqs_out[i])
+            input_length[i, 0] = len(seqs_in[i])
+
+        if m > 1:
+            max_len = max(len(row) for row in seqs_out)
+
+            for i in range(len(labels)):
+                while len(labels[i]) < max_len:
+                    labels[i].append(self._mapping.encode(self._mapping.sentinel))
+
+            seqs_in_pad = self.pad_seqsin(seqs_in)
+            raise Exception('oops')
+
+        seqs_in_pad = seqs_in
+
+        n = len(seqs_in_pad[0])
+        X = np.array(seqs_in_pad)
 
         X = X.reshape((m, n, self._channels))
 
-        classes = []
-        labels = []
-
-        input_length = np.zeros([m, 1], dtype=np.int32)
-        label_length = np.zeros([m, 1], dtype=np.int32)
-
-        for i, seq in enumerate(seqs_out):
-            tmp = []
-
-            for ch in seq:
-                tmp.append(char_table.encode(ch))
-
-            classes.append(tmp)
-
-            labels.append(tmp)
-
-            input_length[i, 0] = len(seqs_in[i])
-            label_length[i, 0] = len(classes[-1])
-
-        max_len = max(len(row) for row in labels)
-
-        for i in range(len(labels)):
-            while len(labels[i]) < max_len:
-                labels[i].append(char_table.encode(char_table.sentinel))
-
         labels = np.array(labels, dtype=np.int32)
+        print(labels.shape)
 
-        Y = np.array(classes)
-
-        return [X, labels, input_length, label_length], Y
+        return [X, labels, input_length, label_length], labels
 
 
 def seqlen(seq):
@@ -254,17 +257,14 @@ def predict(inputs, inference_model):
         index = pmf.argmax()
         codes.append(index)
 
-    try:
-        s = ''
-        for code in codes:
-            try:
-                ch = char_table.decode(code)
-            except:
-                ch = '*'
-            s += ch
-        print(s)
-    except:
-        pass
+    s = ''
+    for code in codes:
+        if char_table.is_unknown(code):
+            ch = '*'
+        else:
+            ch = char_table.decode(code)
+        s += ch
+    print(s)
 
     codes = remove_repeates(codes)
     codes = remove_blanks(codes)
@@ -329,9 +329,75 @@ def dummy_source():
     return PreLoadedSource(x, [sout])
 
 
+def words_source(source):
+    def remove_apostrpohs(seq):
+        res = ''.join(seq.split('&apos;'))
+        res = ''.join(res.split('&quot;'))
+        return res
+
+    def clean(seq):
+        s = ''
+        for ch in seq.strip():
+            if ch.isalpha():
+                s += ch
+
+        return s
+
+    points = []
+    transcriptions = []
+    for seq_in, transcription in source.get_sequences():
+        transcription = remove_apostrpohs(transcription)
+
+        words = [clean(word) for word in transcription.split(' ')]
+
+        points.append(seq_in)
+        transcriptions.append(words)
+
+    return PreLoadedSource(points, transcriptions)
+
+
+def embeddings_source(source, num_examples):
+    from train_on_embeddings import auto_encoder, get_embeddings
+    embeddings, transcriptions, _, _ = get_embeddings(auto_encoder.get_encoder(), source, num_examples)
+    return PreLoadedSource(embeddings, transcriptions)
+
+
+def labels_source(source, mapping_table):
+    seqs_in = []
+    seqs_out = []
+
+    for seq_in, seq_out in source.get_sequences():
+        tmp = []
+
+        for ch in seq_out:
+            tmp.append(mapping_table.encode(ch))
+
+        seqs_in.append(seq_in)
+        seqs_out.append(tmp)
+
+    return PreLoadedSource(seqs_in, seqs_out)
+
+
+def ctc_adapted_source(source, padding_value=0):
+    seqs_in = []
+    seqs_out = []
+    for seq_in, seq_out in source.get_sequences():
+        seqs_in_pad = list(seq_in)
+
+        while len(seqs_in_pad) <= 2 * len(seq_out) + 1:
+            n = len(seqs_in_pad[0])
+            seqs_in_pad.append([padding_value] * n)
+        seqs_in.append(seqs_in_pad)
+
+        seqs_out.append(seq_out)
+
+    return PreLoadedSource(seqs_in, seqs_out)
+
+
 if __name__ == '__main__':
     import argparse
     import os
+    from data.vocab import Vocabulary
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
@@ -339,17 +405,12 @@ if __name__ == '__main__':
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=1500)
     parser.add_argument('--warp', type=bool, default=False)
-    parser.add_argument('--recurrent_layer', type=str, default='SimpleRNN')
+    parser.add_argument('--recurrent_layer', type=str, default='GRU')
+    parser.add_argument('--num_cells', type=int, default=100)
 
     args = parser.parse_args()
-    print('training with following options:', args)
-    char_table = CharacterTable()
 
-    batch_size = 1
-    embedding_size = 2
-    num_train_examples = args.max_examples
-    num_val_examples = max(1, num_train_examples // 2)
-    label_space = len(char_table) + 1
+    print('training with following options:', args)
 
     compilation_train_source = CompilationSource(
         os.path.join(args.data_path, 'train.json')
@@ -358,14 +419,32 @@ if __name__ == '__main__':
     compilation_validation_source = CompilationSource(
         os.path.join(args.data_path, 'validation.json')
     )
-    train_source = points_source(compilation_train_source, num_train_examples)
-    val_source = points_source(compilation_validation_source, num_val_examples)
-    #train_source = dummy_source()
-    #val_source = dummy_source()
+
+    train_source = words_source(compilation_train_source)
+    val_source = words_source(compilation_validation_source)
+
+    transcriptions = [t for seq_in, t in train_source.get_sequences()]
+    char_table = Vocabulary(transcriptions)
+
+    batch_size = 1
+    embedding_size = 2
+    num_train_examples = args.max_examples
+    num_val_examples = max(1, num_train_examples // 2)
+    label_space = len(char_table) + 1
+
+    train_source = points_source(train_source, num_train_examples)
+    val_source = points_source(val_source, num_val_examples)
+
+    #train_source = embeddings_source(train_source, num_train_examples)
+    #val_source = embeddings_source(val_source, num_val_examples)
 
     preprocessor = PreProcessor()
-    train_gen = CtcGenerator(train_source, preprocessor, channels=embedding_size)
-    val_gen = CtcGenerator(val_source, preprocessor, channels=embedding_size)
+
+    train_source = ctc_adapted_source(labels_source(train_source, char_table))
+    val_source = ctc_adapted_source(labels_source(val_source, char_table))
+
+    train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=embedding_size)
+    val_gen = CtcGenerator(char_table, val_source, preprocessor, channels=embedding_size)
 
     validation_steps = num_val_examples
 
@@ -378,7 +457,8 @@ if __name__ == '__main__':
         ctc_model = WarpCtcModel(RNN_LAYER, label_space, embedding_size)
         ctc_model.fig_generator(train_gen, val_gen, args.lrate, args.epochs)
     else:
-        ctc_model = CtcModel(RNN_LAYER, label_space, embedding_size)
+        ctc_model = CtcModel(RNN_LAYER, label_space,
+                             embedding_size, num_cells=args.num_cells)
 
         model, inference_model = ctc_model.compile(lrate=args.lrate)
 
@@ -390,3 +470,6 @@ if __name__ == '__main__':
                             callbacks=[MyCallback(inference_model, train_gen, val_gen), TensorBoard()])
 
         #model.save('./weights/blstm/blstm.h5')
+
+
+# todo:

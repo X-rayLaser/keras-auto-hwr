@@ -1,6 +1,6 @@
 from models.base import BaseEncoderDecoder
-from keras.layers import Input, Conv1D, MaxPool1D, Dense, Flatten, Dropout, GRU, Bidirectional
-from keras.regularizers import l1, l2
+from keras.layers import Input, Conv1D, MaxPool1D, Dense, Flatten, Dropout
+from keras.regularizers import l2
 from keras.models import Model
 import numpy as np
 
@@ -45,7 +45,7 @@ class ConvolutionalRecognizer(BaseEncoderDecoder):
 
     def fit_generator(self, lr, train_gen, val_gen, *args, **kwargs):
         from keras.callbacks import Callback
-        from keras.optimizers import RMSprop, Adam
+        from keras.optimizers import Adam
 
         predictor = self.get_inference_model()
 
@@ -117,48 +117,3 @@ class ConvNetGenerator(BaseGenerator):
         Y = to_categorical(classes, num_classes=len(self._vocab))
 
         return X, Y
-
-
-class Vocabulary:
-    def __init__(self, transcriptions, max_size=1000):
-        from collections import Counter
-
-        counter = Counter()
-        for transcription in transcriptions:
-            for s in transcription.split(' '):
-                word = self._clean(s)
-                print(word)
-
-                counter.update([word])
-
-        print(counter)
-        d = dict(counter.most_common(max_size - 1))
-        d['?'] = 1
-
-        self._code_to_word = []
-        self._word_to_code = {}
-
-        for i, word in enumerate(d.keys()):
-            self._word_to_code[word] = i
-            self._code_to_word.append(word)
-
-    def _clean(self, seq):
-        s = ''
-        for ch in seq.strip():
-            if ch.isalpha():
-                s += ch
-
-        return s
-
-    def encode(self, s):
-        s = self._clean(s)
-        if s in self._word_to_code:
-            return self._word_to_code[s]
-        else:
-            return self._word_to_code['?']
-
-    def decode(self, code):
-        return self._code_to_word[code]
-
-    def __len__(self):
-        return len(self._code_to_word)
