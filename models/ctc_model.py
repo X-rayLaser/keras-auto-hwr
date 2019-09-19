@@ -102,7 +102,7 @@ class WarpCtcModel:
 
 
 class CtcModel:
-    def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=50):
+    def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=50, save_path='./trained.h5'):
         inp = Input(shape=(None, embedding_size))
         lstm = Bidirectional(recurrent_layer(units=num_cells, input_shape=(None, embedding_size), return_sequences=True))
         densor = TimeDistributed(Dense(units=num_labels, activation='softmax'))
@@ -115,10 +115,15 @@ class CtcModel:
         self.graph = y_pred
         self.num_labels = num_labels
 
-    def computation_graph(self):
-        pass
+        self.save_path = save_path
 
-    def compile(self, lrate):
+        import os
+        self.inference_model = Model(inputs=self.graph_input, output=y_pred)
+
+        if os.path.isfile(save_path):
+            self.inference_model.load_weights(save_path)
+
+    def fit_generator(self, train_gen, val_gen, lrate, epochs, char_table):
         def ctc_lambda_func(args):
             y_pred, labels, input_length, label_length = args
 
@@ -137,12 +142,27 @@ class CtcModel:
         model = Model(inputs=[self.graph_input, labels, input_length, label_length],
                       outputs=loss_out)
 
-        inference_model = Model(inputs=self.graph_input, output=y_pred)
-
-        model.compile(optimizer=Adam(lrate), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
+        model.compile(optimizer=Adam(lrate, clipnorm=5), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
         model.summary()
 
-        return model, inference_model
+        batch_size = 1
+        validation_steps = len(val_gen)
+        from keras.callbacks import Callback, TensorBoard
+
+        save_path = self.save_path
+        inference_model = self.inference_model
+
+        class SaveCallback(Callback):
+            def on_epoch_end(self, epoch, logs=None):
+                inference_model.save_weights(save_path)
+
+        model.fit_generator(train_gen.get_examples(batch_size=batch_size),
+                            steps_per_epoch=int(len(train_gen) / batch_size),
+                            epochs=epochs,
+                            validation_data=val_gen.get_examples(batch_size),
+                            validation_steps=validation_steps,
+                            callbacks=[MyCallback(inference_model, train_gen, val_gen, char_table),
+                                       TensorBoard(), SaveCallback()])
 
 
 def seqlen(seq, char_table):
@@ -247,7 +267,7 @@ class MyCallback(Callback):
             #input('Press anything')
 
     def on_epoch_end(self, epoch, logs=None):
-        if epoch % 50 == 0 and epoch != 0:
+        if epoch % 10 == 0 and epoch != 0:
             self.demo(self._train_gen)
             print('val')
             self.demo(self._val_gen)

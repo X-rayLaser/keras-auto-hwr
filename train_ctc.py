@@ -147,10 +147,11 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='./compiled')
     parser.add_argument('--max_examples', type=int, default=8)
     parser.add_argument('--lrate', type=float, default=0.001)
-    parser.add_argument('--epochs', type=int, default=1500)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--warp', type=bool, default=False)
     parser.add_argument('--recurrent_layer', type=str, default='SimpleRNN')
     parser.add_argument('--num_cells', type=int, default=100)
+    parser.add_argument('--save_path', type=str, default='./weights/blstm/blstm.h5')
 
     args = parser.parse_args()
 
@@ -201,21 +202,11 @@ if __name__ == '__main__':
         ctc_model.fig_generator(train_gen, val_gen, args.lrate, args.epochs, char_table)
     else:
         ctc_model = CtcModel(RNN_LAYER, label_space,
-                             embedding_size, num_cells=args.num_cells)
+                             embedding_size, num_cells=args.num_cells, save_path=args.save_path)
 
-        model, inference_model = ctc_model.compile(lrate=args.lrate)
-
-        model.fit_generator(train_gen.get_examples(batch_size=batch_size),
-                            steps_per_epoch=int(len(train_gen) / batch_size),
-                            epochs=args.epochs,
-                            validation_data=val_gen.get_examples(batch_size),
-                            validation_steps=validation_steps,
-                            callbacks=[MyCallback(inference_model, train_gen, val_gen, char_table), TensorBoard()])
-
-        #model.save('./weights/blstm/blstm.h5')
+        ctc_model.fit_generator(train_gen, val_gen, args.lrate, args.epochs, char_table)
 
 
-# todo: normalize x, y, t by concatenating all x sequences of tuples and running np.mean, np.std to find vectors of [mux, muy, mut], [stdx, stdy ,stdt]
 # todo: advanced preprocessing/normalizing stage
 # todo: error correction by intepolating missing values and truncating too large point sequences
 # todo: save model and continue training from last saved point functionality
