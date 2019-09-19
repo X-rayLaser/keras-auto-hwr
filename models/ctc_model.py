@@ -142,7 +142,7 @@ class CtcModel:
         model = Model(inputs=[self.graph_input, labels, input_length, label_length],
                       outputs=loss_out)
 
-        model.compile(optimizer=Adam(lrate, clipnorm=5), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
+        model.compile(optimizer=Adam(lrate), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
         model.summary()
 
         batch_size = 1

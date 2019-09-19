@@ -121,9 +121,11 @@ class Normalizer:
         res = []
         for x in X:
             x_norm = (x - self._mu) / self._sd
+
+            # we do not want to normalize END-OF-STROKE flag which is last in the tuple
+            x_norm[:, -1] = np.array(x)[:, -1]
             res.append(x_norm.tolist())
 
-        #print(res)
         return res
 
 
@@ -135,7 +137,7 @@ def normalized_source(source, normalizer):
         seqs_out.append(seq_out)
 
     processed = normalizer.preprocess(seqs_in)
-    print(processed)
+
     return PreLoadedSource(processed, seqs_out)
 
 
@@ -145,11 +147,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
-    parser.add_argument('--max_examples', type=int, default=8)
+    parser.add_argument('--max_examples', type=int, default=128)
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--warp', type=bool, default=False)
-    parser.add_argument('--recurrent_layer', type=str, default='SimpleRNN')
+    parser.add_argument('--recurrent_layer', type=str, default='GRU')
     parser.add_argument('--num_cells', type=int, default=100)
     parser.add_argument('--save_path', type=str, default='./weights/blstm/blstm.h5')
 
@@ -209,4 +211,3 @@ if __name__ == '__main__':
 
 # todo: advanced preprocessing/normalizing stage
 # todo: error correction by intepolating missing values and truncating too large point sequences
-# todo: save model and continue training from last saved point functionality
