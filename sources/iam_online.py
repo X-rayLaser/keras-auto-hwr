@@ -241,7 +241,7 @@ class Stroke:
             raise BadStrokeException()
 
         points = [(0, 0)]
-        for x, y in self.points:
+        for x, y, t in self.points:
             x = (x - min_x) / max_side
             y = (y - min_y) / max_side
             points.append((x, y))
@@ -340,7 +340,8 @@ class StrokeLine:
             for point in stroke_tag:
                 y = int(point.attrib['y']) - self._y_from
                 x = int(point.attrib['x']) - self._x_from
-                points.append((x, y))
+                t = float(point.attrib['time'])
+                points.append((x, y, t))
 
             res.append(Stroke(points))
 

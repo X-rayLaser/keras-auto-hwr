@@ -9,6 +9,9 @@ def load_data(source, num_lines):
     for strokes_list, transcription in source.get_sequences():
         hand_writings.append(strokes_list)
         transcriptions.append(transcription)
+        fetched = len(transcriptions)
+        if fetched % 500 == 0:
+            print('Fetched {} examples'.format(fetched))
 
         if len(transcriptions) > num_lines:
             break
@@ -27,9 +30,9 @@ def compile_data(source, destination):
         hand_writings.append(strokes_list)
         transcriptions.append(transcription)
 
-        fetched = len(transcriptions)
-        if fetched % 500 == 0:
-            print('Fetched {} examples'.format(fetched))
+        num_done = len(transcriptions)
+        if num_done % 500 == 0:
+            print('Compiled {} examples'.format(num_done))
 
     d = {
         'hand_writings': hand_writings,

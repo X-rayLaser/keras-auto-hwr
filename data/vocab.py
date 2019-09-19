@@ -15,7 +15,7 @@ class Vocabulary(CharacterTable):
                 counter.update([word])
 
         d = dict(counter.most_common(max_size - 1))
-        print(d)
+
         d['?'] = max_size
 
         self._map_from_index = {}
@@ -31,10 +31,11 @@ class Vocabulary(CharacterTable):
             if ch.isalpha():
                 s += ch
 
-        return s
+        return s.lower()
 
     def encode(self, s):
         s = self._clean(s)
         if s not in self._map_to_index:
+            print('Unknown:', s)
             s = '?'
         return super().encode(s)
