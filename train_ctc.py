@@ -147,9 +147,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
-    parser.add_argument('--max_examples', type=int, default=128)
+    parser.add_argument('--max_examples', type=int, default=8)
     parser.add_argument('--lrate', type=float, default=0.001)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=500)
     parser.add_argument('--warp', type=bool, default=False)
     parser.add_argument('--recurrent_layer', type=str, default='GRU')
     parser.add_argument('--num_cells', type=int, default=100)

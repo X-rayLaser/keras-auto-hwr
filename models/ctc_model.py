@@ -206,7 +206,6 @@ def predict(inputs, inference_model, char_table):
         else:
             ch = char_table.decode(code)
         s += ch
-    print(s)
 
     codes = remove_repeates(codes)
     codes = remove_blanks(codes, char_table)

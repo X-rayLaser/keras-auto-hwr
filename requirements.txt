@@ -1,5 +1,6 @@
 numpy
 tensorflow
+tensorflowjs
 Keras
 Pillow
 scikit-image
