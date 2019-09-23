@@ -146,5 +146,5 @@ class NormalizedSource(BaseSource):
 
     def get_sequences(self):
         for points, transcription in self._source.get_sequences():
-            norm = self._normalizer.preprocess([points])
+            norm = self._normalizer.preprocess([points])[0]
             yield norm, transcription

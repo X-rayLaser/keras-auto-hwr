@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
-    parser.add_argument('--max_examples', type=int, default=8)
+    parser.add_argument('--max_examples', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=1)
 
     parser.add_argument('--lrate', type=float, default=0.001)
@@ -135,14 +135,6 @@ if __name__ == '__main__':
 
     print('training with following options:', args)
 
-    compilation_train_source = CompilationSource(
-        os.path.join(args.data_path, 'train.json')
-    )
-
-    compilation_validation_source = CompilationSource(
-        os.path.join(args.data_path, 'validation.json')
-    )
-
     char_table = CharacterTable()
 
     batch_size = args.batch_size
@@ -151,16 +143,15 @@ if __name__ == '__main__':
     num_val_examples = max(1, num_train_examples // 2)
     label_space = len(char_table) + 1
 
-    train_source = points_source(compilation_train_source, num_train_examples)
-    val_source = points_source(compilation_validation_source, num_val_examples)
+    train_source = CompilationSource(
+        os.path.join(args.data_path, 'train.json'),
+        num_train_examples
+    )
 
-    normalizer = Normalizer()
-
-    xs = [in_seq for in_seq, _ in train_source.get_sequences()]
-    normalizer.fit(xs)
-
-    train_source = normalized_source(train_source, normalizer)
-    val_source = normalized_source(val_source, normalizer)
+    val_source = CompilationSource(
+        os.path.join(args.data_path, 'validation.json'),
+        num_val_examples
+    )
 
     preprocessor = PreProcessor()
 

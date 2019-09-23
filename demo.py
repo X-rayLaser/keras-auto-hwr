@@ -1,11 +1,9 @@
 from data.char_table import CharacterTable
 from models.ctc_model import CtcModel
 from models.ctc_model import MyCallback
-from train_ctc import points_source
 import os
 from sources.compiled import CompilationSource
-from train_ctc import normalized_source, labels_source, CtcGenerator
-from sources.wrappers import Normalizer
+from train_ctc import LabelSource, CtcGenerator
 from data.preprocessing import PreProcessor
 from keras import layers
 
@@ -13,26 +11,16 @@ from keras import layers
 def model_demo(model, char_table):
     data_path = './compiled'
 
-    compilation_train_source = CompilationSource(
-        os.path.join(data_path, 'train.json')
+    train_source = CompilationSource(
+        os.path.join(data_path, 'train.json'), 10
     )
 
-    compilation_test_source = CompilationSource(
-        os.path.join(data_path, 'test.json')
+    test_source = CompilationSource(
+        os.path.join(data_path, 'test.json'), 10
     )
-    train_source = points_source(compilation_train_source, 1)
-    test_source = points_source(compilation_test_source, 1)
 
-    normalizer = Normalizer()
-
-    xs = [in_seq for in_seq, _ in train_source.get_sequences()]
-    normalizer.fit(xs)
-
-    train_source = normalized_source(train_source, normalizer)
-    test_source = normalized_source(test_source, normalizer)
-
-    train_source = labels_source(train_source, char_table)
-    test_source = labels_source(test_source, char_table)
+    train_source = LabelSource(train_source, char_table)
+    test_source = LabelSource(test_source, char_table)
 
     preprocessor = PreProcessor()
     train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=embedding_size)
