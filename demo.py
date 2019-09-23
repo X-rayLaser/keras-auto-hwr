@@ -4,7 +4,8 @@ from models.ctc_model import MyCallback
 from train_ctc import points_source
 import os
 from sources.compiled import CompilationSource
-from train_ctc import Normalizer, normalized_source, labels_source, CtcGenerator
+from train_ctc import normalized_source, labels_source, CtcGenerator
+from sources.wrappers import Normalizer
 from data.preprocessing import PreProcessor
 from keras import layers
 

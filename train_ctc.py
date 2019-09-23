@@ -1,14 +1,13 @@
 from data.generators import BaseGenerator
 from sources.preloaded import PreLoadedSource
 from data.char_table import CharacterTable
-from keras.callbacks import TensorBoard
 from data.preprocessing import PreProcessor
 import numpy as np
 from sources.compiled import CompilationSource
 from sources.iam_online import BadStrokeException
 from keras import layers
-from sources.wrappers import labels_source
-from models.ctc_model import WarpCtcModel, CtcModel, MyCallback
+from sources.wrappers import LabelSource, Normalizer
+from models.ctc_model import WarpCtcModel, CtcModel
 
 
 def points_source(source, num_examples):
@@ -103,31 +102,6 @@ def dummy_source():
     return PreLoadedSource(x, [sout])
 
 
-class Normalizer:
-    def __init__(self):
-        self._mu = None
-        self._sd = None
-
-    def fit(self, X):
-        sequence = []
-        for x in X:
-            sequence.extend(x)
-
-        self._mu = np.mean(sequence, axis=0)
-        self._sd = np.std(sequence, axis=0)
-
-    def preprocess(self, X):
-        res = []
-        for x in X:
-            x_norm = (x - self._mu) / self._sd
-
-            # we do not want to normalize END-OF-STROKE flag which is last in the tuple
-            x_norm[:, -1] = np.array(x)[:, -1]
-            res.append(x_norm.tolist())
-
-        return res
-
-
 def normalized_source(source, normalizer):
     seqs_in = []
     seqs_out = []
@@ -147,7 +121,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
     parser.add_argument('--max_examples', type=int, default=8)
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=1)
 
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=500)
@@ -190,8 +164,8 @@ if __name__ == '__main__':
 
     preprocessor = PreProcessor()
 
-    train_source = labels_source(train_source, char_table)
-    val_source = labels_source(val_source, char_table)
+    train_source = LabelSource(train_source, char_table)
+    val_source = LabelSource(val_source, char_table)
 
     train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=embedding_size)
     val_gen = CtcGenerator(char_table, val_source, preprocessor, channels=embedding_size)

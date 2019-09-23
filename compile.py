@@ -1,6 +1,7 @@
 from sources.iam_online import OnlineSource, LinesSource
 from sources.preloaded import PreLoadedSource
 import json
+from sources.wrappers import Normalizer, OffsetPointsSource, NormalizedSource
 
 
 def load_data(source, num_lines):
@@ -19,15 +20,12 @@ def load_data(source, num_lines):
     return PreLoadedSource(hand_writings, transcriptions)
 
 
-def compile_data(source, destination):
+def compile_data(source, destination, normalizer):
+    source = NormalizedSource(OffsetPointsSource(source), normalizer)
     hand_writings = []
     transcriptions = []
-    for strokes, transcription in source.get_sequences():
-        strokes_list = []
-        for stroke in strokes:
-            strokes_list.append(stroke.points)
-
-        hand_writings.append(strokes_list)
+    for xs, transcription in source.get_sequences():
+        hand_writings.append(xs)
         transcriptions.append(transcription)
 
         num_done = len(transcriptions)
@@ -36,7 +34,9 @@ def compile_data(source, destination):
 
     d = {
         'hand_writings': hand_writings,
-        'transcriptions': transcriptions
+        'transcriptions': transcriptions,
+        'mu': normalizer.mu.tolist(),
+        'sd': normalizer.sd.tolist()
     }
 
     with open(destination, 'w') as f:
@@ -65,5 +65,13 @@ if __name__ == '__main__':
     file_names = ['train.json', 'validation.json', 'test.json']
     destinations = [os.path.join(dest_root, f) for f in file_names]
 
+    normalizer = Normalizer()
+    train_source, _, _ = sources
+    train_source = OffsetPointsSource(train_source)
+    xs = [in_seq for in_seq, _ in train_source.get_sequences()]
+    normalizer.fit(xs)
+
     for i in range(len(file_names)):
-        compile_data(sources[i], destinations[i])
+        compile_data(sources[i], destinations[i], normalizer)
+
+
