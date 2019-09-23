@@ -14,6 +14,10 @@ class CharacterTable:
             index_to_char[index] = ch
             char_to_index[ch] = index
 
+        sentinel_index = len(index_to_char)
+        index_to_char[sentinel_index] = self.sentinel
+        char_to_index[self.sentinel] = sentinel_index
+
         self._map_to_index = char_to_index
         self._map_from_index = index_to_char
 

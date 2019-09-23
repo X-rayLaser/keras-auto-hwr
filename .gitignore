@@ -2,6 +2,7 @@ datasets/
 samples/
 venv/
 compiled/
+deployed/
 logs/
 *.pyc
 \.idea/

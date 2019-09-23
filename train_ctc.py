@@ -59,13 +59,6 @@ class CtcGenerator(BaseGenerator):
 
         labels = list(seqs_out)
 
-        label_length = np.zeros([m, 1], dtype=np.int32)
-        input_length = np.zeros([m, 1], dtype=np.int32)
-
-        for i, seq in enumerate(seqs_out):
-            label_length[i, 0] = len(seqs_out[i])
-            input_length[i, 0] = len(seqs_in[i])
-
         if m > 1:
             max_len = max(len(row) for row in seqs_out)
 
@@ -74,9 +67,8 @@ class CtcGenerator(BaseGenerator):
                     labels[i].append(self._mapping.encode(self._mapping.sentinel))
 
             seqs_in_pad = self.pad_seqsin(seqs_in)
-            raise Exception('oops')
-
-        seqs_in_pad = seqs_in
+        else:
+            seqs_in_pad = seqs_in
 
         n = len(seqs_in_pad[0])
         X = np.array(seqs_in_pad)
@@ -84,6 +76,13 @@ class CtcGenerator(BaseGenerator):
         X = X.reshape((m, n, self._channels))
 
         labels = np.array(labels, dtype=np.int32)
+
+        label_length = np.zeros([m, 1], dtype=np.int32)
+        input_length = np.zeros([m, 1], dtype=np.int32)
+
+        for i in range(len(labels)):
+            label_length[i, 0] = len(labels[i])
+            input_length[i, 0] = len(seqs_in_pad[i])
 
         return [X, labels, input_length, label_length], labels
 
@@ -148,8 +147,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
     parser.add_argument('--max_examples', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=8)
+
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=500)
+
     parser.add_argument('--warp', type=bool, default=False)
     parser.add_argument('--recurrent_layer', type=str, default='GRU')
     parser.add_argument('--num_cells', type=int, default=100)
@@ -169,7 +171,7 @@ if __name__ == '__main__':
 
     char_table = CharacterTable()
 
-    batch_size = 1
+    batch_size = args.batch_size
     embedding_size = 4
     num_train_examples = args.max_examples
     num_val_examples = max(1, num_train_examples // 2)
@@ -206,7 +208,7 @@ if __name__ == '__main__':
         ctc_model = CtcModel(RNN_LAYER, label_space,
                              embedding_size, num_cells=args.num_cells, save_path=args.save_path)
 
-        ctc_model.fit_generator(train_gen, val_gen, args.lrate, args.epochs, char_table)
+        ctc_model.fit_generator(train_gen, val_gen, args.lrate, args.epochs, char_table, batch_size)
 
 
 # todo: advanced preprocessing/normalizing stage

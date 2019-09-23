@@ -123,7 +123,7 @@ class CtcModel:
         if os.path.isfile(save_path):
             self.inference_model.load_weights(save_path)
 
-    def fit_generator(self, train_gen, val_gen, lrate, epochs, char_table):
+    def fit_generator(self, train_gen, val_gen, lrate, epochs, char_table, batch_size=1):
         def ctc_lambda_func(args):
             y_pred, labels, input_length, label_length = args
 
@@ -145,8 +145,8 @@ class CtcModel:
         model.compile(optimizer=Adam(lrate), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
         model.summary()
 
-        batch_size = 1
-        validation_steps = len(val_gen)
+        validation_steps = max(1, int(len(val_gen) / batch_size))
+        print('validation_steps', validation_steps)
         from keras.callbacks import Callback, TensorBoard
 
         save_path = self.save_path
