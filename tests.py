@@ -2,6 +2,7 @@ from data.char_table import CharacterTable
 import numpy as np
 import unittest
 from sources.wrappers import Normalizer
+import os
 
 
 class CharacterTableTests(unittest.TestCase):
@@ -80,6 +81,22 @@ class NormalizerTests(unittest.TestCase):
 
         self.assertEqual(res[0][0], [0, 2])
         self.assertEqual(res[0][1], [0.25, 10])
+
+    def test_serrialization(self):
+        normalizer = Normalizer()
+        normalizer.set_mean([1, 2])
+        normalizer.set_deviation([4, 1])
+
+        path = './test_mu.json'
+        normalizer.to_json(path)
+
+        normalizer = Normalizer.from_json(path)
+
+        self.assertEqual(normalizer.mu, [1, 2])
+        self.assertEqual(normalizer.sd, [4, 1])
+
+        if os.path.isfile(path):
+            os.remove(path)
 
 
 if __name__ == '__main__':

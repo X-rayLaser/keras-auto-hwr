@@ -1,52 +1,27 @@
 from sources.iam_online import OnlineSource, LinesSource
-from sources.preloaded import PreLoadedSource
-import json
-from sources.wrappers import Normalizer, OffsetPointsSource, NormalizedSource
+from sources.wrappers import Normalizer, OffsetPointsSource
+from sources.base import BaseSourceWrapper
+from sources.compiled import CompilationSource
+import os
+from data.factories import DataSplitter
 
 
-def load_data(source, num_lines):
-    hand_writings = []
-    transcriptions = []
-    for strokes_list, transcription in source.get_sequences():
-        hand_writings.append(strokes_list)
-        transcriptions.append(transcription)
-        fetched = len(transcriptions)
-        if fetched % 500 == 0:
-            print('Fetched {} examples'.format(fetched))
+class ConstrainedSource(BaseSourceWrapper):
+    def __init__(self, source, num_lines):
+        super().__init__(source)
+        self._num_lines = num_lines
 
-        if len(transcriptions) > num_lines:
-            break
-
-    return PreLoadedSource(hand_writings, transcriptions)
-
-
-def compile_data(source, destination, normalizer):
-    source = NormalizedSource(OffsetPointsSource(source), normalizer)
-    hand_writings = []
-    transcriptions = []
-    for xs, transcription in source.get_sequences():
-        hand_writings.append(xs)
-        transcriptions.append(transcription)
-
-        num_done = len(transcriptions)
-        if num_done % 500 == 0:
-            print('Compiled {} examples'.format(num_done))
-
-    d = {
-        'hand_writings': hand_writings,
-        'transcriptions': transcriptions,
-        'mu': normalizer.mu.tolist(),
-        'sd': normalizer.sd.tolist()
-    }
-
-    with open(destination, 'w') as f:
-        f.write(json.dumps(d))
+    def get_sequences(self):
+        for j, (seq_in, seq_out) in enumerate(self._source.get_sequences()):
+            if j % 500 == 0:
+                print('Fetched {} examples'.format(j))
+            if j >= self._num_lines:
+                break
+            yield seq_in, seq_out
 
 
 if __name__ == '__main__':
     import argparse
-    import os
-    from data.factories import DataSplitter
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./')
@@ -55,14 +30,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     it = LinesSource(OnlineSource(args.data_path))
-    preloaded = load_data(source=it, num_lines=args.num_lines)
+    preloaded = ConstrainedSource(source=it, num_lines=args.num_lines)
     splitter = DataSplitter(preloaded)
 
     sources = [splitter.train_data(), splitter.validation_data(),
                splitter.test_data()]
 
     dest_root = args.destination_dir
-    file_names = ['train.json', 'validation.json', 'test.json']
+    file_names = ['train.h5py', 'validation.h5py', 'test.h5py']
     destinations = [os.path.join(dest_root, f) for f in file_names]
 
     normalizer = Normalizer()
@@ -70,8 +45,8 @@ if __name__ == '__main__':
     train_source = OffsetPointsSource(train_source)
     xs = [in_seq for in_seq, _ in train_source.get_sequences()]
     normalizer.fit(xs)
+    mu_sd_destination = os.path.join(dest_root, 'mu_std.json')
+    normalizer.to_json(mu_sd_destination)
 
     for i in range(len(file_names)):
-        compile_data(sources[i], destinations[i], normalizer)
-
-
+        CompilationSource.compile_data(sources[i], destinations[i], normalizer)

@@ -1,7 +1,7 @@
 import numpy as np
-
 from sources import BaseSource
 from sources.preloaded import PreLoadedSource
+import json
 
 
 class WordsSource(BaseSource):
@@ -77,6 +77,25 @@ class Normalizer:
     def __init__(self):
         self._mu = None
         self._sd = None
+
+    @staticmethod
+    def from_json(path):
+        with open(path, 'r') as f:
+            s = f.read()
+
+        d = json.loads(s)
+        normalizer = Normalizer()
+        normalizer.set_mean(d['mu'])
+        normalizer.set_deviation(d['sd'])
+        return normalizer
+
+    def to_json(self, path):
+        d = {
+            'mu': np.array(self.mu).tolist(),
+            'sd': np.array(self.sd).tolist()
+        }
+        with open(path, 'w') as f:
+            f.write(json.dumps(d))
 
     def set_mean(self, mu):
         self._mu = mu
