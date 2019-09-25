@@ -10,15 +10,21 @@ from sources.preloaded import PreLoadedSource
 from util import points_to_image
 from . import preprocessing
 from config import Config
+from sources.compiled import H5pyDataSet
+import os
 
 
 class DataSplitter:
     def __init__(self, data_iterator):
         self._iter = data_iterator
 
-        self._train = []
-        self._val = []
-        self._test = []
+        root = os.path.join('./temp', 'split')
+        train_path = os.path.join(root, 'train.h5py')
+        val_path = os.path.join(root, 'validation.h5py')
+        test_path = os.path.join(root, 'test.h5py')
+        self._train = H5pyDataSet.create(train_path)
+        self._val = H5pyDataSet.create(val_path)
+        self._test = H5pyDataSet.create(test_path)
         self._split()
 
     def _split(self):
@@ -28,21 +34,28 @@ class DataSplitter:
 
         for points, transcription in self._iter.get_sequences():
             index = np.random.choice([0, 1, 2], replace=True, p=pmf)
-            dest_list = destination[index]
-            dest_list.append((points, transcription))
+            data_set = destination[index]
+            data_set.add_example(points, transcription)
 
         if len(self._val) == 0:
-            self._val.append(self._train.pop())
+            self._val.add_example(*self._train.pop())
 
         if len(self._test) == 0:
-            self._test.append(self._train.pop())
+            self._test.add_example(*self._train.pop())
 
         assert len(self._train) > 0
 
-    def _create_iterator(self, data):
-        hand_writings = [points for points, transcription in data]
-        transcriptions = [transcription for points, transcription in data]
-        return PreLoadedSource(hand_writings, transcriptions)
+    def _create_iterator(self, data_set):
+        from sources.base import BaseSource
+
+        class InlineSource(BaseSource):
+            def __len__(self):
+                return len(data_set)
+
+            def get_sequences(self):
+                return data_set.get_data(random_order=False)
+
+        return InlineSource()
 
     def train_data(self):
         return self._create_iterator(self._train)

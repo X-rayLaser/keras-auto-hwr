@@ -2,6 +2,77 @@ from sources import BaseSource
 from sources.wrappers import NormalizedSource
 import h5py
 import random
+import numpy as np
+import os
+
+
+class H5pyDataSet:
+    def __init__(self, path):
+        self._path = path
+
+    @staticmethod
+    def create(path):
+        if os.path.isfile(path):
+            os.remove(path)
+
+        with h5py.File(path, 'w') as f:
+            f.create_group('X_rows')
+            f.create_group('Y_rows')
+
+        return H5pyDataSet(path)
+
+    def __len__(self):
+        with h5py.File(self._path, 'r') as f:
+            y_rows = f['Y_rows']
+            return len(y_rows.keys())
+
+    def add_example(self, xs, ys):
+        with h5py.File(self._path, 'a') as f:
+            x_rows = f['X_rows']
+            y_rows = f['Y_rows']
+
+            m = len(self)
+            string_dt = h5py.special_dtype(vlen=str)
+            x_dset = x_rows.create_dataset(str(m), data=np.array(xs))
+            y_dset = y_rows.create_dataset(str(m), shape=(1,), dtype=string_dt)
+            y_dset[0] = ys
+            x_dset.flush()
+            y_dset.flush()
+
+    def get_data(self, num_lines=None, random_order=False):
+        with h5py.File(self._path, 'r') as f:
+            x_rows = f['X_rows']
+            y_rows = f['Y_rows']
+
+            if num_lines is None:
+                m = len(self)
+            else:
+                m = min(num_lines, len(self))
+
+            indices = list(range(m))
+
+            if random_order:
+                random.shuffle(indices)
+
+            for index in indices:
+                dict_key = str(index)
+                x = x_rows[dict_key]
+                y = y_rows[dict_key]
+                yield x[:], y[0]
+
+    def pop(self):
+        with h5py.File(self._path, 'a') as f:
+            x_rows = f['X_rows']
+            y_rows = f['Y_rows']
+
+            last_index = len(self) - 1
+            dict_key = str(last_index)
+            xs = x_rows[dict_key]
+            ys = y_rows[dict_key]
+
+            del x_rows[dict_key]
+            del y_rows[dict_key]
+            return xs, ys
 
 
 class CompilationSource(BaseSource):
@@ -15,50 +86,18 @@ class CompilationSource(BaseSource):
     def compile_data(source, destination, normalizer):
         source = NormalizedSource(source, normalizer)
 
-        with h5py.File(destination, 'w') as f:
-            x_rows = f.create_group('X_rows')
-            y_rows = f.create_group('Y_rows')
+        h5py_data = H5pyDataSet.create(destination)
 
-            string_dt = h5py.special_dtype(vlen=str)
+        for xs, ys in source.get_sequences():
+            if len(h5py_data) % 500 == 0:
+                print('Compiled {} examples'.format(len(h5py_data)))
 
-            counter = 0
-            for xs, transcription in source.get_sequences():
-                if counter % 500 == 0:
-                    print('Compiled {} examples'.format(counter))
-
-                import numpy as np
-                x_dset = x_rows.create_dataset(str(counter), data=np.array(xs))
-                y_dset = y_rows.create_dataset(str(counter), shape=(1,), dtype=string_dt)
-                y_dset[0] = transcription
-                x_dset.flush()
-                y_dset.flush()
-                counter += 1
+            h5py_data.add_example(xs, ys)
 
     def get_sequences(self):
-        with h5py.File(self._path, 'r') as f:
-            x_rows = f['X_rows']
-            y_rows = f['Y_rows']
-
-            m = min(self._num_lines, len(y_rows.keys()))
-
-            indices = list(range(m))
-
-            if self._random:
-                random.shuffle(indices)
-
-            assert len(indices) == m
-
-            for index in indices:
-                dict_key = str(index)
-                x = x_rows[dict_key]
-                y = y_rows[dict_key]
-                yield x[:], y[0]
+        h5py_data = H5pyDataSet(self._path)
+        return h5py_data.get_data(self._num_lines, self._random)
 
     def __len__(self):
-        if not self._size:
-            i = 0
-            for i, _ in enumerate(self.get_sequences()):
-                pass
-
-            self._size = min(self._num_lines, i + 1)
-        return self._size
+        h5py_data = H5pyDataSet(self._path)
+        return len(h5py_data)

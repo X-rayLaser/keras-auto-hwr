@@ -15,6 +15,8 @@ def model_demo(model, char_table):
         os.path.join(data_path, 'train.h5py'), 10
     )
 
+    print('len', len(train_source))
+
     test_source = CompilationSource(
         os.path.join(data_path, 'test.h5py'), 10
     )

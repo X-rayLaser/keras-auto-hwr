@@ -3,6 +3,7 @@ samples/
 venv/
 compiled/
 deployed/
+temp/
 logs/
 *.pyc
 \.idea/
