@@ -1,13 +1,15 @@
 from sources import BaseSource
-from sources.wrappers import OffsetPointsSource, NormalizedSource
+from sources.wrappers import NormalizedSource
 import h5py
+import random
 
 
 class CompilationSource(BaseSource):
-    def __init__(self, path, num_lines):
+    def __init__(self, path, num_lines, random_order=True):
         self._path = path
         self._num_lines = num_lines
         self._size = None
+        self._random = random_order
 
     @staticmethod
     def compile_data(source, destination, normalizer):
@@ -39,9 +41,17 @@ class CompilationSource(BaseSource):
 
             m = min(self._num_lines, len(y_rows.keys()))
 
-            for i in range(m):
-                x = x_rows[str(i)]
-                y = y_rows[str(i)]
+            indices = list(range(m))
+
+            if self._random:
+                random.shuffle(indices)
+
+            assert len(indices) == m
+
+            for index in indices:
+                dict_key = str(index)
+                x = x_rows[dict_key]
+                y = y_rows[dict_key]
                 yield x[:], y[0]
 
     def __len__(self):

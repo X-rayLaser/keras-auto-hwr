@@ -28,6 +28,7 @@ def model_demo(model, char_table):
 
     callback = MyCallback(model, train_gen, test_gen, char_table)
     callback.demo(train_gen)
+    callback.demo(test_gen)
 
 
 if __name__ == '__main__':

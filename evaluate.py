@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--recurrent_layer', type=str, default='LSTM')
     parser.add_argument('--num_cells', type=int, default=100)
-    parser.add_argument('--max_examples', type=int, default=1)
+    parser.add_argument('--max_examples', type=int, default=128)
 
     parser.add_argument('--model_path', type=str, default='./weights/blstm/blstm.h5')
 
@@ -50,6 +50,9 @@ if __name__ == '__main__':
     test_gen = CtcGenerator(char_table, test_source, preprocessor, channels=embedding_size)
 
     model = ctc_model.compile_model(0.001)
-    print(len(train_gen))
+
     res = model.evaluate_generator(train_gen.get_examples(1), steps=len(train_gen))
-    print(res)
+    print('evalution on train data:', res)
+
+    res = model.evaluate_generator(test_gen.get_examples(1), steps=len(train_gen))
+    print('evalution on test data:', res)
