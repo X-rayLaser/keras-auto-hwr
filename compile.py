@@ -30,19 +30,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     it = LinesSource(OnlineSource(args.data_path))
-    preloaded = ConstrainedSource(source=it, num_lines=args.num_lines)
-    splitter = DataSplitter(preloaded)
+    root_source = ConstrainedSource(source=it, num_lines=args.num_lines)
 
-    sources = [splitter.train_data(), splitter.validation_data(),
-               splitter.test_data()]
+    offset_source = OffsetPointsSource(root_source)
 
     dest_root = args.destination_dir
     file_names = ['train.h5py', 'validation.h5py', 'test.h5py']
     destinations = [os.path.join(dest_root, f) for f in file_names]
 
     normalizer = Normalizer()
+    splitter = DataSplitter(offset_source)
+
+    sources = [splitter.train_data(), splitter.validation_data(),
+               splitter.test_data()]
+
     train_source, _, _ = sources
-    train_source = OffsetPointsSource(train_source)
+
     xs = [in_seq for in_seq, _ in train_source.get_sequences()]
     normalizer.fit(xs)
     mu_sd_destination = os.path.join(dest_root, 'mu_std.json')

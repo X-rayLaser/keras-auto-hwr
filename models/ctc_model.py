@@ -104,7 +104,14 @@ class WarpCtcModel:
 class CtcModel:
     def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=50, save_path='./trained.h5'):
         inp = Input(shape=(None, embedding_size))
-        lstm = Bidirectional(recurrent_layer(units=num_cells, input_shape=(None, embedding_size), return_sequences=True))
+        rnn_params = dict(units=num_cells, input_shape=(None, embedding_size),
+                          return_sequences=True)
+        print('recurrent layer is', recurrent_layer.__name__)
+
+        if recurrent_layer.__name__ == 'LSTM':
+            rnn_params['recurrent_activation'] = 'sigmoid'
+
+        lstm = Bidirectional(recurrent_layer(**rnn_params))
         densor = TimeDistributed(Dense(units=num_labels, activation='softmax'))
 
         x = inp
@@ -123,7 +130,7 @@ class CtcModel:
         if os.path.isfile(save_path):
             self.inference_model.load_weights(save_path)
 
-    def fit_generator(self, train_gen, val_gen, lrate, epochs, char_table, batch_size=1):
+    def compile_model(self, lrate):
         def ctc_lambda_func(args):
             y_pred, labels, input_length, label_length = args
 
@@ -144,7 +151,10 @@ class CtcModel:
 
         model.compile(optimizer=Adam(lrate), loss={'ctc': lambda y_true, y_pred: y_pred}, metrics=['acc'])
         model.summary()
+        return model
 
+    def fit_generator(self, train_gen, val_gen, lrate, epochs, char_table, batch_size=1):
+        model = self.compile_model(lrate)
         validation_steps = max(1, int(len(val_gen) / batch_size))
         print('validation_steps', validation_steps)
         from keras.callbacks import Callback, TensorBoard
@@ -253,6 +263,9 @@ class MyCallback(Callback):
             y = points_vector[0, :, 1]
             t = points_vector[0, :, 2]
 
+            from util import points_to_image
+            points_to_image(points_vector[0]).show()
+
             from matplotlib import pyplot
 
             #pyplot.scatter(x, y)
@@ -263,7 +276,7 @@ class MyCallback(Callback):
             #pyplot.scatter(t, y)
             #pyplot.show()
 
-            #input('Press anything')
+            input('Press anything')
 
     def on_epoch_end(self, epoch, logs=None):
         if epoch % 10 == 0 and epoch != 0:

@@ -144,12 +144,12 @@ if __name__ == '__main__':
     label_space = len(char_table) + 1
 
     train_source = CompilationSource(
-        os.path.join(args.data_path, 'train.json'),
+        os.path.join(args.data_path, 'train.h5py'),
         num_train_examples
     )
 
     val_source = CompilationSource(
-        os.path.join(args.data_path, 'validation.json'),
+        os.path.join(args.data_path, 'validation.h5py'),
         num_val_examples
     )
 

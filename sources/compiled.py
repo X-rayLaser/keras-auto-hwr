@@ -11,7 +11,7 @@ class CompilationSource(BaseSource):
 
     @staticmethod
     def compile_data(source, destination, normalizer):
-        source = NormalizedSource(OffsetPointsSource(source), normalizer)
+        source = NormalizedSource(source, normalizer)
 
         with h5py.File(destination, 'w') as f:
             x_rows = f.create_group('X_rows')

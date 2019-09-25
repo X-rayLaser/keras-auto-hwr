@@ -1,6 +1,7 @@
 import numpy as np
 from keras.preprocessing.image import array_to_img
 from PIL import Image, ImageDraw
+from sources.wrappers import Normalizer
 
 
 def round_point(point):
@@ -88,21 +89,48 @@ def visualize_stroke(points):
     return im
 
 
-def points_to_image(points, width=3):
-    #points = [round_point(p) for p in points]
-    height = max([y for x, y in points]) + 1
-    width = max([x for x, y in points]) + 1
+def restore_points(points):
+    normalizer = Normalizer.from_json('./compiled/mu_std.json')
+    mu_x = normalizer.mu[0]
+    mu_y = normalizer.mu[1]
+
+    std_x = normalizer.sd[0]
+    std_y = normalizer.sd[1]
+
+    def denormalize(x, y, eos):
+        x = int(round(x * std_x + mu_x))
+        y = int(round(y * std_y + mu_y))
+        return x, y, int(round(eos))
+
+    points = [denormalize(x, y, eos) for x, y, t, eos in points]
+
+    min_x = min([x for x, y, eos in points])
+    min_y = min([y for x, y, eos in points])
+
+    return [(x - min_x, y - min_y, eos) for x, y, eos in points]
+
+
+def points_to_image(points):
+    points = restore_points(points)
+
+    max_x = max([x for x, y, eos in points])
+    max_y = max([y for x, y, eos in points])
+    width = max_x + 1
+    height = max_y + 1
 
     a = np.zeros((height, width), dtype=np.uint8)
 
     im = Image.fromarray(a, mode='L')
 
     canvas = ImageDraw.ImageDraw(im, mode='L')
-
     prev_point = None
-    for x, y in points:
+    for i, (x, y, eos) in enumerate(points):
         if prev_point:
-            canvas.line((prev_point, (x, y)), width=width, fill=255)
-        prev_point = (x, y)
+            canvas.line((prev_point, (x, y)), width=4, fill=255)
+
+        if eos == 1:
+            prev_point = None
+        else:
+            prev_point = (x, y)
 
     return im
