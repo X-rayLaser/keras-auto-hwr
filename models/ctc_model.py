@@ -106,7 +106,6 @@ class CtcModel:
         inp = Input(shape=(None, embedding_size))
         rnn_params = dict(units=num_cells, input_shape=(None, embedding_size),
                           return_sequences=True)
-        print('recurrent layer is', recurrent_layer.__name__)
 
         if recurrent_layer.__name__ == 'LSTM':
             rnn_params['recurrent_activation'] = 'sigmoid'
@@ -259,24 +258,11 @@ class MyCallback(Callback):
             print(true, '->', pred)
 
             points_vector = inputs[0]
-            x = points_vector[0, :, 0]
-            y = points_vector[0, :, 1]
-            t = points_vector[0, :, 2]
 
-            from util import points_to_image
-            points_to_image(points_vector[0]).show()
+            #from util import points_to_image
+            #points_to_image(points_vector[0]).show()
 
-            from matplotlib import pyplot
-
-            #pyplot.scatter(x, y)
-            #pyplot.show()
-            #pyplot.scatter(x, t)
-            #pyplot.show()
-
-            #pyplot.scatter(t, y)
-            #pyplot.show()
-
-            input('Press anything')
+            #input('Press anything')
 
     def on_epoch_end(self, epoch, logs=None):
         if epoch % 10 == 0 and epoch != 0:

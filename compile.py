@@ -11,11 +11,14 @@ class ConstrainedSource(BaseSourceWrapper):
         super().__init__(source)
         self._num_lines = num_lines
 
+        self._use_all = (num_lines == 0)
+
     def get_sequences(self):
         for j, (seq_in, seq_out) in enumerate(self._source.get_sequences()):
             if j % 500 == 0:
                 print('Fetched {} examples'.format(j))
-            if j >= self._num_lines:
+
+            if j >= self._num_lines and not self._use_all:
                 break
             yield seq_in, seq_out
 
@@ -27,7 +30,11 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='./')
     parser.add_argument('--destination_dir', type=str, default='./')
     parser.add_argument('--num_lines', type=int, default=8)
+
     args = parser.parse_args()
+
+    if args.num_lines == 0:
+        print('WARNING: num_lines is set to 0, thus all data will be used')
 
     it = LinesSource(OnlineSource(args.data_path))
     root_source = ConstrainedSource(source=it, num_lines=args.num_lines)
@@ -46,7 +53,7 @@ if __name__ == '__main__':
 
     train_source, _, _ = sources
 
-    xs = [in_seq for in_seq, _ in train_source.get_sequences()]
+    xs = (in_seq for in_seq, _ in train_source.get_sequences())
     normalizer.fit(xs)
     mu_sd_destination = os.path.join(dest_root, 'mu_std.json')
     normalizer.to_json(mu_sd_destination)

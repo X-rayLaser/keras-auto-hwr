@@ -54,5 +54,5 @@ if __name__ == '__main__':
     res = model.evaluate_generator(train_gen.get_examples(1), steps=len(train_gen))
     print('evalution on train data:', res)
 
-    res = model.evaluate_generator(test_gen.get_examples(1), steps=len(train_gen))
+    res = model.evaluate_generator(test_gen.get_examples(1), steps=len(test_gen))
     print('evalution on test data:', res)

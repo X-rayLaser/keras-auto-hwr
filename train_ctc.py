@@ -164,7 +164,6 @@ if __name__ == '__main__':
     validation_steps = num_val_examples
 
     RNN_LAYER = getattr(layers, args.recurrent_layer)
-    print('using layer', str(RNN_LAYER))
 
     if args.warp:
         ctc_model = WarpCtcModel(RNN_LAYER, label_space, embedding_size, num_cells=args.num_cells)

@@ -100,4 +100,4 @@ class CompilationSource(BaseSource):
 
     def __len__(self):
         h5py_data = H5pyDataSet(self._path)
-        return len(h5py_data)
+        return min(self._num_lines, len(h5py_data))

@@ -27,7 +27,10 @@ if __name__ == '__main__':
     label_space = len(char_table) + 1
 
     inp = Input(shape=(None, embedding_size))
-    lstm = Bidirectional(recurrent_layer(units=num_cells, input_shape=(None, embedding_size), return_sequences=True))
+    lstm = Bidirectional(recurrent_layer(units=num_cells,
+                                         input_shape=(None, embedding_size),
+                                         return_sequences=True,
+                                         recurrent_activation='sigmoid'))
     densor = TimeDistributed(Dense(units=label_space, activation='softmax'))
 
     x = inp
