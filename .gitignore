@@ -4,6 +4,7 @@ venv/
 compiled/
 deployed/
 temp/
+demo/node_modules/
 logs/
 *.pyc
 \.idea/

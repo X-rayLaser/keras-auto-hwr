@@ -5,33 +5,30 @@ from sources.compiled import CompilationSource
 from train_ctc import LabelSource, CtcGenerator
 from data.preprocessing import PreProcessor
 from keras import layers
+from config import CTCConfig
+from train_ctc import build_model
 
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--recurrent_layer', type=str, default='LSTM')
-    parser.add_argument('--num_cells', type=int, default=100)
+    parser.add_argument('--data_path', type=str, default='./compiled')
     parser.add_argument('--max_examples', type=int, default=128)
-
-    parser.add_argument('--model_path', type=str, default='./weights/blstm/blstm.h5')
+    parser.add_argument('--cuda', type=bool, default=False)
 
     args = parser.parse_args()
 
     recurrent_layer = getattr(layers, args.recurrent_layer)
 
-    embedding_size = 4
+    num_features = CTCConfig().config_dict['num_features']
     num_cells = args.num_cells
     char_table = CharacterTable()
     model_path = args.model_path
 
-    label_space = len(char_table) + 1
+    ctc_model = build_model(args.cuda, warp=False)
 
-    ctc_model = CtcModel(recurrent_layer, label_space, embedding_size=embedding_size,
-                         num_cells=num_cells, save_path=model_path)
-
-    data_path = './compiled'
+    data_path = args.data_path
 
     train_source = CompilationSource(
         os.path.join(data_path, 'train.h5py'), args.max_examples
@@ -46,8 +43,8 @@ if __name__ == '__main__':
 
     preprocessor = PreProcessor()
 
-    train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=embedding_size)
-    test_gen = CtcGenerator(char_table, test_source, preprocessor, channels=embedding_size)
+    train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=num_features)
+    test_gen = CtcGenerator(char_table, test_source, preprocessor, channels=num_features)
 
     model = ctc_model.compile_model(0.001)
 

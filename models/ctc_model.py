@@ -27,8 +27,12 @@ class BaseCtcModel:
 
 
 class WarpCtcModel:
-    def __init__(self, recurrent_layer, num_labels, embedding_size, num_cells):
+    def __init__(self, recurrent_layer, embedding_size, num_cells):
         import warpctc_tensorflow
+
+        from data.char_table import CharacterTable
+        char_table = CharacterTable()
+        num_labels = len(char_table) + 1
 
         self.num_labels = num_labels
         self.graph_input = Input(shape=(None, embedding_size))
@@ -102,10 +106,14 @@ class WarpCtcModel:
 
 
 class CtcModel:
-    def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=50, save_path='./trained.h5'):
+    def __init__(self, recurrent_layer, embedding_size, num_cells=50, save_path='./trained.h5'):
         inp = Input(shape=(None, embedding_size))
         rnn_params = dict(units=num_cells, input_shape=(None, embedding_size),
                           return_sequences=True)
+
+        from data.char_table import CharacterTable
+        char_table = CharacterTable()
+        num_labels = len(char_table) + 1
 
         if recurrent_layer.__name__ == 'LSTM':
             rnn_params['recurrent_activation'] = 'sigmoid'

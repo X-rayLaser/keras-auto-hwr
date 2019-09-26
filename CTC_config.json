@@ -1,0 +1,6 @@
+{
+  "num_cells": 100,
+  "recurrent_layer": "LSTM",
+  "num_features": 4,
+  "weights_location": "./weights/blstm/blstm.h5"
+}
