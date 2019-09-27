@@ -33,37 +33,89 @@ function scale(points, normalizer) {
     });
 }
 
-const drawPoints = (points, normalizer) => {
-    const canvas = document.getElementById('my_canvas');
-    const ctx = canvas.getContext('2d');
+function descale(points, normalizer) {
+    return points.map((point, index, array) => {
+        var [x, y, t, eos] = point;
 
-    ctx.clearRect(0, 0, 1600, 300);
-    ctx.beginPath()
+        let maxW = normalizer.muX * 2.25;
 
-    var points = shiftPoints(scale(points, normalizer));
+        var f = 1600 / maxW;
+        x = x / f;
+        y = y / f;
+        return [x, y, t, eos];
+    });
+}
 
-    var [x0, y0, t0, eos0] = points[0];
 
-    let offsetPoints = points;
+class Canvas {
+    constructor() {
+        this.canvas = document.getElementById('my_canvas');
+        this.points = [];
+    }
 
-    ctx.moveTo(x0, y0);
+    clear() {
+        const ctx = this.canvas.getContext('2d');
+        ctx.clearRect(0, 0, 1600, 300);
+        ctx.beginPath();
+        this.points = [];
+    }
 
-    const drawStroke = index => {
-        if (index >= offsetPoints.length) {
-            recognize(offsetPoints);
-            return;
-        }
+    addFirstPoint(p) {
+        let [x0, y0, t0, eos0] = p;
+        const ctx = this.canvas.getContext('2d');
+        ctx.moveTo(x0, y0);
+        this.points.push(p)
+    }
 
-        let [x, y, t, eos] = offsetPoints[index];
+    addPoint(p, newStroke) {
+        let [x, y, t, eos] = p;
+        const ctx = this.canvas.getContext('2d');
 
-        let prevEndOfStroke = offsetPoints[index - 1][3];
-        if (prevEndOfStroke == 1) {
+        if (newStroke) {
+            if (this.points.length > 0) {
+                this.points[this.points.length - 1][3] = 1;
+            }
             ctx.moveTo(x, y);
         }
 
         ctx.lineTo(x, y);
         ctx.stroke();
 
+        this.points.push(p);
+    }
+
+    getPoints() {
+        return this.points.slice(0);
+    }
+}
+
+
+let canvas;
+
+
+const drawPoints = (points, normalizer) => {
+    let originalPoints = points;
+    var points = shiftPoints(scale(points, normalizer));
+
+    var [x0, y0, t0, eos0] = points[0];
+
+    let offsetPoints = points;
+
+    canvas.clear();
+    canvas.addFirstPoint(points[0]);
+
+    const drawStroke = index => {
+        if (index >= offsetPoints.length) {
+            return;
+        }
+
+        let p = offsetPoints[index];
+
+        let prevEndOfStroke = offsetPoints[index - 1][3];
+        let newStroke = (prevEndOfStroke == 1);
+        canvas.addPoint(p, newStroke);
+
+        let [x, y, t, eos] = p;
         let dt = offsetPoints[index] - offsetPoints[index - 1];
         let delayInSeconds = dt * 1000;
         setTimeout(() => drawStroke(index + 1), delayInSeconds);
@@ -74,6 +126,10 @@ const drawPoints = (points, normalizer) => {
 
     setTimeout(() => drawStroke(1), t1 - t0);
 }
+
+
+let globalNormalizer;
+
 
 const fetchExample = () => {
     var params = {
@@ -88,8 +144,23 @@ const fetchExample = () => {
         let obj = s;
         let points = obj.points;
         drawPoints(points, obj.normalizer);
+        globalNormalizer = obj.normalizer;
 
         $('#ground_true').text(obj.transcription);
+    })
+}
+
+function fetchNormalizer () {
+    var params = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+    fetch('http://localhost:8080/get_normalizer', params).then(response => {
+        return response.json();
+    }).then(obj => {
+        globalNormalizer = obj.normalizer;
     })
 }
 
@@ -112,7 +183,62 @@ function recognize(points) {
 }
 
 $(document).ready(e => {
-    let button = $('#next_example_button').on('click', e => {
+    canvas = new Canvas();
+
+    fetchNormalizer();
+
+    let nextButton = $('#next_example_button').on('click', e => {
         fetchExample();
+    });
+
+    let recognizeButton = $('#recognize_button').on('click', e => {
+        let points = descale(canvas.getPoints(), globalNormalizer);
+        let first = points[0];
+
+        let offsetPoints = points.map((point, index, array) => {
+            let [x, y, t, eos] = point;
+            return [x - first[0], y - first[1], t - first[2], eos];
+        })
+
+        recognize(offsetPoints);
+    });
+
+    let clearButton = $('#clear_button').on('click', e => {
+        canvas.clear();
+    });
+
+    var drawing = false;
+    let first = true;
+
+    function getPoint(e) {
+        let rect = $('#my_canvas')[0].getBoundingClientRect();
+        let t = Date.now() / 1000;
+        return [e.clientX - rect.x, e.clientY - rect.y, t, 0];
+    }
+
+    $('#my_canvas').on('mousedown', e => {
+        drawing = true;
+        let p = getPoint(e);
+
+        if (first) {
+            let newStroke = false;
+            canvas.addFirstPoint(p, false);
+        } else {
+            let newStroke = true;
+            canvas.addPoint(p, newStroke);
+        }
+
+        first = false;
+    });
+
+    $('#my_canvas').on('mousemove', e => {
+        if (drawing) {
+            let p = getPoint(e);
+            canvas.addPoint(p);
+        }
+    });
+
+    $('#my_canvas').on('mouseup', e => {
+        drawing = false;
     });
 });

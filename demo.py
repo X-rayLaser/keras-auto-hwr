@@ -14,13 +14,13 @@ def model_demo(model, data_path):
     num_features = CTCConfig().config_dict['num_features']
 
     train_source = CompilationSource(
-        os.path.join(data_path, 'train.h5py'), 10
+        os.path.join(data_path, 'train.h5py'), 20
     )
 
     print('len', len(train_source))
 
     test_source = CompilationSource(
-        os.path.join(data_path, 'test.h5py'), 10
+        os.path.join(data_path, 'test.h5py'), 20
     )
 
     train_source = LabelSource(train_source, char_table)

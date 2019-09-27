@@ -47,6 +47,20 @@ class MyHandler(SimpleHTTPRequestHandler):
             }
             s = json.dumps(d)
             self.wfile.write(bytes(s, encoding='ascii'))
+        elif self.path == '/get_normalizer':
+            normalizer = Normalizer.from_json('./compiled/mu_std.json')
+
+            d = {
+                'normalizer': {
+                    'muX': normalizer.mu[0],
+                    'muY': normalizer.mu[1],
+                    'stdX': normalizer.sd[0],
+                    'stdY': normalizer.sd[1]
+                }
+            }
+
+            s = json.dumps(d)
+            self.wfile.write(bytes(s, encoding='ascii'))
 
     def do_POST(self):
         length = int(self.headers.get('content-length'))
