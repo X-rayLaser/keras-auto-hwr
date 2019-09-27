@@ -8,6 +8,7 @@ import sys
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from sources.compiled import CompilationSource
+from sources.wrappers import DenormalizedSource, Normalizer
 
 
 PORT = 8080
@@ -21,13 +22,21 @@ class MyHandler(SimpleHTTPRequestHandler):
         elif self.path == '/get_example':
 
             source = CompilationSource('./compiled/test.h5py', num_lines=10)
-            self._gen = source.get_sequences()
+            normalizer = Normalizer.from_json('./compiled/mu_std.json')
+            source = DenormalizedSource(source, normalizer)
+            gen = source.get_sequences()
 
-            x, y = next(self._gen)
+            x, y = next(gen)
 
             d = {
-                'x': x.tolist(),
-                'y': y
+                'points': x,
+                'transcription': y,
+                'normalizer': {
+                    'muX': normalizer.mu[0],
+                    'muY': normalizer.mu[1],
+                    'stdX': normalizer.sd[0],
+                    'stdY': normalizer.sd[1]
+                }
             }
             s = json.dumps(d)
             self.wfile.write(bytes(s, encoding='ascii'))

@@ -167,3 +167,25 @@ class NormalizedSource(BaseSource):
         for points, transcription in self._source.get_sequences():
             norm = self._normalizer.preprocess([points])[0]
             yield norm, transcription
+
+
+class DenormalizedSource(BaseSource):
+    def __init__(self, source, normalizer):
+        self._source = source
+        self._normalizer = normalizer
+
+    def __len__(self):
+        return len(self._source)
+
+    def get_sequences(self):
+        mu = self._normalizer.mu
+        sd = self._normalizer.sd
+
+        for points, transcription in self._source.get_sequences():
+
+            denormalized = [(p * sd + mu).tolist() for p in points]
+
+            for i, p in enumerate(denormalized):
+                p[3] = points[i][3]
+
+            yield denormalized, transcription
