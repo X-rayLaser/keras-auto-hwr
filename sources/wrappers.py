@@ -85,8 +85,10 @@ class Normalizer:
 
         d = json.loads(s)
         normalizer = Normalizer()
-        normalizer.set_mean(d['mu'])
-        normalizer.set_deviation(d['sd'])
+        mu = np.array(d['mu'])
+        sd = np.array(d['sd'])
+        normalizer.set_mean(mu)
+        normalizer.set_deviation(sd)
         return normalizer
 
     def to_json(self, path):

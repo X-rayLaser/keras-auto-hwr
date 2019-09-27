@@ -37,6 +37,9 @@ const drawPoints = (points, normalizer) => {
     const canvas = document.getElementById('my_canvas');
     const ctx = canvas.getContext('2d');
 
+    ctx.clearRect(0, 0, 1600, 300);
+    ctx.beginPath()
+
     var points = shiftPoints(scale(points, normalizer));
 
     var [x0, y0, t0, eos0] = points[0];
@@ -47,6 +50,7 @@ const drawPoints = (points, normalizer) => {
 
     const drawStroke = index => {
         if (index >= offsetPoints.length) {
+            recognize(offsetPoints);
             return;
         }
 
@@ -81,12 +85,34 @@ const fetchExample = () => {
     fetch('http://localhost:8080/get_example', params).then(function (response) {
         return response.json();
     }).then(function (s) {
-        console.log(s);
         let obj = s;
         let points = obj.points;
-        console.log(obj.transcription);
         drawPoints(points, obj.normalizer);
+
+        $('#ground_true').text(obj.transcription);
     })
 }
 
-setTimeout(fetchExample, 5000);
+function recognize(points) {
+    let body = JSON.stringify({'line': points});
+    var params = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: body
+    };
+
+    fetch('http://localhost:8080/recognize', params).then(response => {
+        return response.json();
+    }).then(s => {
+        let obj = s;
+        $('#predicted').text(obj.prediction);
+    })
+}
+
+$(document).ready(e => {
+    let button = $('#next_example_button').on('click', e => {
+        fetchExample();
+    });
+});

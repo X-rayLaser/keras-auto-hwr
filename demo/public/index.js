@@ -56,6 +56,8 @@ function scale(points, normalizer) {
 var drawPoints = function drawPoints(points, normalizer) {
   var canvas = document.getElementById('my_canvas');
   var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 1600, 300);
+  ctx.beginPath();
   var points = shiftPoints(scale(points, normalizer));
 
   var _points$ = _slicedToArray(points[0], 4),
@@ -69,6 +71,7 @@ var drawPoints = function drawPoints(points, normalizer) {
 
   var drawStroke = function drawStroke(index) {
     if (index >= offsetPoints.length) {
+      recognize(offsetPoints);
       return;
     }
 
@@ -120,12 +123,34 @@ var fetchExample = function fetchExample() {
   fetch('http://localhost:8080/get_example', params).then(function (response) {
     return response.json();
   }).then(function (s) {
-    console.log(s);
     var obj = s;
     var points = obj.points;
-    console.log(obj.transcription);
     drawPoints(points, obj.normalizer);
+    $('#ground_true').text(obj.transcription);
   });
 };
 
-setTimeout(fetchExample, 5000);
+function recognize(points) {
+  var body = JSON.stringify({
+    'line': points
+  });
+  var params = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: body
+  };
+  fetch('http://localhost:8080/recognize', params).then(function (response) {
+    return response.json();
+  }).then(function (s) {
+    var obj = s;
+    $('#predicted').text(obj.prediction);
+  });
+}
+
+$(document).ready(function (e) {
+  var button = $('#next_example_button').on('click', function (e) {
+    fetchExample();
+  });
+});

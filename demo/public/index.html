@@ -8,11 +8,23 @@
             border: 1px;
         }
     </style>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous">
+    </script>
 </head>
 <body>
 
-    <canvas id="my_canvas" width="1600px" height="600px"></canvas>
-
+    <canvas id="my_canvas" width="1600px" height="300px"></canvas>
+    <div>
+        <label>Predicted:</label>
+        <label id="predicted"></label>
+    </div>
+    <div>
+        <label>Predicted:</label>
+        <label id="ground_true"></label>
+    </div>
+    <button id="next_example_button">Next example</button>
     <script src="index.js"></script>
 </body>
 </html>

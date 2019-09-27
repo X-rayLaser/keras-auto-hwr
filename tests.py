@@ -92,8 +92,11 @@ class NormalizerTests(unittest.TestCase):
 
         normalizer = Normalizer.from_json(path)
 
-        self.assertEqual(normalizer.mu, [1, 2])
-        self.assertEqual(normalizer.sd, [4, 1])
+        self.assertIsInstance(normalizer.mu, np.ndarray)
+        self.assertIsInstance(normalizer.sd, np.ndarray)
+
+        self.assertEqual(normalizer.mu.tolist(), [1, 2])
+        self.assertEqual(normalizer.sd.tolist(), [4, 1])
 
         if os.path.isfile(path):
             os.remove(path)
