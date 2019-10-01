@@ -1,5 +1,4 @@
 from sources import BaseSource
-from sources.wrappers import NormalizedSource
 import h5py
 import random
 import numpy as np
@@ -39,26 +38,29 @@ class H5pyDataSet:
             x_dset.flush()
             y_dset.flush()
 
-    def get_data(self, num_lines=None, random_order=False):
+    def get_example(self, index):
         with h5py.File(self._path, 'r') as f:
             x_rows = f['X_rows']
             y_rows = f['Y_rows']
 
-            if num_lines is None:
-                m = len(self)
-            else:
-                m = min(num_lines, len(self))
+            dict_key = str(index)
+            x = x_rows[dict_key]
+            y = y_rows[dict_key]
+            return x[:], y[0]
 
-            indices = list(range(m))
+    def get_data(self, num_lines=None, random_order=False):
+        if num_lines is None:
+            m = len(self)
+        else:
+            m = min(num_lines, len(self))
 
-            if random_order:
-                random.shuffle(indices)
+        indices = list(range(m))
 
-            for index in indices:
-                dict_key = str(index)
-                x = x_rows[dict_key]
-                y = y_rows[dict_key]
-                yield x[:], y[0]
+        if random_order:
+            random.shuffle(indices)
+
+        for index in indices:
+            yield self.get_example(index)
 
     def pop(self):
         with h5py.File(self._path, 'a') as f:

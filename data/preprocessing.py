@@ -1,6 +1,7 @@
 from sources.base import BaseSourceWrapper
 from sources.wrappers import Normalizer
 import json
+import sys
 
 
 class ProcessingStep:
@@ -136,14 +137,12 @@ class PreProcessor:
 
         d = json.loads(s)
 
-        print(d['steps'])
         self._steps = []
-        import sys
         this_module = sys.modules[__name__]
         for info in d['steps']:
             cls_name = info['class_name']
             params = info['params']
-            print(cls_name)
+
             cls = getattr(this_module, cls_name)
 
             step = cls()

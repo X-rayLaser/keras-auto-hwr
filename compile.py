@@ -23,6 +23,22 @@ class ConstrainedSource(BaseSourceWrapper):
             yield seq_in, seq_out
 
 
+def split_data(source):
+    splitter = DataSplitter(source)
+
+    return [splitter.train_data(), splitter.validation_data(),
+            splitter.test_data()]
+
+
+def compile_data(destination_dir, normalizer):
+    file_names = ['train.h5py', 'validation.h5py', 'test.h5py']
+    destinations = [os.path.join(destination_dir, f) for f in file_names]
+
+    for i in range(len(file_names)):
+        source = NormalizedSource(sources[i], normalizer)
+        CompilationSource.compile_data(source, destinations[i])
+
+
 if __name__ == '__main__':
     import argparse
     from sources.wrappers import NormalizedSource
@@ -37,20 +53,15 @@ if __name__ == '__main__':
     if args.num_lines == 0:
         print('WARNING: num_lines is set to 0, thus all data will be used')
 
+    dest_root = args.destination_dir
+
     it = LinesSource(OnlineSource(args.data_path))
     root_source = ConstrainedSource(source=it, num_lines=args.num_lines)
-
     offset_source = OffsetPointsSource(root_source)
 
-    dest_root = args.destination_dir
-    file_names = ['train.h5py', 'validation.h5py', 'test.h5py']
-    destinations = [os.path.join(dest_root, f) for f in file_names]
-
     normalizer = Normalizer()
-    splitter = DataSplitter(offset_source)
 
-    sources = [splitter.train_data(), splitter.validation_data(),
-               splitter.test_data()]
+    sources = split_data(offset_source)
 
     train_source, _, _ = sources
 
@@ -59,6 +70,4 @@ if __name__ == '__main__':
     mu_sd_destination = os.path.join(dest_root, 'mu_std.json')
     normalizer.to_json(mu_sd_destination)
 
-    for i in range(len(file_names)):
-        source = NormalizedSource(sources[i], normalizer)
-        CompilationSource.compile_data(source, destinations[i])
+    compile_data(dest_root, normalizer)
