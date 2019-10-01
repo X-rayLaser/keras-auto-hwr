@@ -1,32 +1,23 @@
 from util import visualize_stroke
-from models.seq2seq import Seq2seqAutoencoder
 from sources.compiled import CompilationSource
 from sources.iam_online import StrokesSource
-from sources.preloaded import PreLoadedSource
-from data.generators import AutoEncoderGenerator
 from data.preprocessing import PreProcessor
 from train_autoencoder import FeedForwardAutoEncoderGenerator, VanillaAutoEncoder, padded_source
 
 
 def generate(num_trials=10, embedding_size=16, val_gen=True):
-    #auto_encoder = Seq2seqAutoencoder(encoding_size=embedding_size, input_channels=2,
-    #                                  output_channels=2)
-
     if val_gen:
-        path = './compiled/validation.json'
+        path = './compiled/validation.h5py'
     else:
-        path = './compiled/train.json'
+        path = './compiled/train.h5py'
 
-    source = CompilationSource(path=path)
+    source = CompilationSource(path=path, num_lines=num_trials)
     stroke_source = StrokesSource(source, num_strokes=num_trials)
 
-    #max_len = max([len(seq_in) for seq_in, _ in stroke_source.get_sequences()])
     max_len = 508
     stroke_source = padded_source(stroke_source, max_len)
 
     preprocessor = PreProcessor()
-    #gen = AutoEncoderGenerator(strokes_iterator=stroke_source,
-    #                           pre_processor=preprocessor, channels=2)
     gen = FeedForwardAutoEncoderGenerator(stroke_source, preprocessor, channels=2)
     auto_encoder = VanillaAutoEncoder(max_len * 2, embedding_size)
     auto_encoder.load('./weights/auto_encoder')
@@ -49,22 +40,6 @@ def generate(num_trials=10, embedding_size=16, val_gen=True):
         x_recovered = x_recovered[1:-1]
         yield noisy_points, x_recovered
 
-        counter += 1
-
-    return
-    counter = 0
-    for [x_noisy, y_in], y_out in gen.get_examples(batch_size=1):
-        if counter > num_trials:
-            break
-
-        noisy_points = []
-        for v in x_noisy[0]:
-            noisy_points.append((v[0], v[1]))
-
-        noisy_points = noisy_points[1:-1]
-        x_recovered = predictor.predict(x_noisy)
-        x_recovered = x_recovered[1:-1]
-        yield noisy_points, x_recovered
         counter += 1
 
 

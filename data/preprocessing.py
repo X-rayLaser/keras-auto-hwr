@@ -1,243 +1,151 @@
-from sources.preloaded import PreLoadedSource
-import numpy as np
+from sources.base import BaseSourceWrapper
+from sources.wrappers import Normalizer
+import json
 
 
 class ProcessingStep:
-    def fit(self, hand_writings, transcriptions):
-        raise NotImplementedError
-
-    def process(self, hand_writings, transcriptions):
-        raise NotImplementedError
-
-
-class Flattening(ProcessingStep):
-    def fit(self, hand_writings, transcriptions):
+    def set_parameters(self, params_dict):
         pass
 
-    def process(self, hand_writings, transcriptions):
-        points_seq = []
-        for i in range(len(transcriptions)):
-            strokes = hand_writings[i]
+    def fit(self, data):
+        pass
+
+    def process_example(self, x, y):
+        raise NotImplementedError
+
+    def get_parameters(self):
+        return {}
+
+
+class OffsetStep(ProcessingStep):
+    def _pre_process(self, x, x0, y0, t0):
+        new_seq = []
+        for stroke in x:
             points = []
-            for stroke in strokes:
-                points.extend(stroke.points)
 
-            points_seq.append(points)
+            for x, y, t in stroke.points:
+                points.append((x - x0, y - y0, t - t0, 0))
 
-        return points_seq, transcriptions
+            points[-1] = points[-1][:-1] + (1,)
+            new_seq.extend(points)
+        return new_seq
 
+    def process_example(self, x, y):
+        x0, y0, t0 = x.points[0]
+        new_seq = self._pre_process(x, x0, y0, t0)
+        return new_seq, y
 
-class SignalMaker(ProcessingStep):
-    def fit(self, hand_writings, transcriptions):
-        pass
-
-    def process(self, hand_writings, transcriptions):
-        input_seqs = []
-
-        for i in range(len(hand_writings)):
-            points_line = hand_writings[i]
-            heights = [y for x, y in points_line]
-            input_seqs.append(heights)
-        return input_seqs, transcriptions
-
-
-class DeltaSignal(ProcessingStep):
-    def fit(self,  hand_writings, transcriptions):
-        pass
-
-    def to_deltas(self, heights):
-        a = np.array(heights)
-        deltas = a[1:] - a[:-1]
-        return deltas.tolist()
-
-    def process(self,  hand_writings, transcriptions):
-        input_seqs = []
-
-        for i in range(len(hand_writings)):
-            points = hand_writings[i]
-            xs = [x for x, y in points]
-            ys = [y for x, y in points]
-
-            xs = self.to_deltas(xs)
-            ys = self.to_deltas(ys)
-            input_seqs.append(xs + ys)
-
-        return input_seqs, transcriptions
-
-
-class SequencePadding(ProcessingStep):
-    def __init__(self, input_padding=0, target_padding=' ', input_len=None, output_len=None):
-        self._input_len = input_len
-        self._output_len = output_len
-        self._input_pad = input_padding
-        self._target_pad = target_padding
-
-    def fit(self, hand_writings, transcriptions):
-        if self._input_len is None or self._output_len is None:
-            self._input_len = 0
-            self._output_len = 0
-            for i in range(len(hand_writings)):
-                handwriting = hand_writings[i]
-                transcription = transcriptions[i]
-                self._input_len = max(len(handwriting), self._input_len)
-                self._output_len = max(len(transcription), self._output_len)
-
-    def process(self, hand_writings, transcriptions):
-        input_seq = []
-        output_seq = []
-        for i in range(len(hand_writings)):
-            hand_writing = hand_writings[i]
-            transcription = transcriptions[i]
-            hwr = list(hand_writing)
-            hwr = self._pad_input(hwr)
-            transcription = self._pad_target(transcription)
-
-            input_seq.append(hwr)
-            output_seq.append(transcription)
-
-        return input_seq, output_seq
-
-    def _pad_input(self, input_seq):
-        while len(input_seq) < self._input_len:
-            input_seq.append(self._input_pad)
-
-        if len(input_seq) > self._input_len:
-            input_seq = input_seq[:self._input_len]
-
-        return input_seq
-
-    def _pad_target(self, target_seq):
-        while len(target_seq) < self._output_len:
-            target_seq += self._target_pad
-
-        if len(target_seq) > self._output_len:
-            target_seq = target_seq[:self._output_len]
-
-        return target_seq
-
-
-class Truncation(ProcessingStep):
-    def __init__(self, fraction=0.5):
-        self._fraction = fraction
-        self._max_input_len = 0
-        self._max_output_len = 0
-
-    def fit(self, hand_writings, transcriptions):
-
-        inp_len = max([len(inp) for inp in hand_writings])
-        self._max_input_len = inp_len
-
-        output_len = max([len(output) for output in transcriptions])
-        self._max_output_len = output_len
-
-    def _calculate_cutoff(self, max_len):
-        return int(round(max_len * self._fraction))
-
-    def process(self, hand_writings, transcriptions):
-        inputs = []
-        outputs = []
-        input_len = self._calculate_cutoff(self._max_input_len)
-        output_len = self._calculate_cutoff(self._max_output_len)
-
-        for i in range(len(hand_writings)):
-            input_seq = hand_writings[i]
-            output_seq = transcriptions[i]
-            inputs.append(input_seq[:input_len])
-            outputs.append(output_seq[:output_len])
-
-        return inputs, outputs
-
-
-class DftCompress(ProcessingStep):
-    def __init__(self, block_size=64, cutoff=16):
-        self._block_size = block_size
-        self._cutoff = cutoff
-
-    def fit(self, batch):
-        pass
-
-    def compress(self, point_seq):
-        while len(point_seq) % self._block_size != 0:
-            point_seq.append(0)
-
-        res = []
-        for i in range(0, len(point_seq), self._block_size):
-            block = point_seq[i:i + self._block_size]
-            spectrum = np.fft.fft(block)
-            spectrum = spectrum[:self._cutoff]
-            res.extend(np.abs(spectrum).tolist())
-
-        return res
-
-    def process(self, batch):
-        spectrums = []
-        transcriptions = []
-        for handwriting, transcription in batch.get_sequences():
-            spectrums.append(self.compress(handwriting))
-            transcriptions.append(transcription)
-
-        return PreLoadedSource(spectrums, transcriptions)
-
-
-class PrincipalComponentAnalysis(ProcessingStep):
-    def fit(self, hand_writings, transcriptions):
-        pass
-
-    def process(self, hand_writings, transcriptions):
+    def set_parameters(self, params_dict):
         pass
 
 
-class StreamSplit(ProcessingStep):
-    def fit(self, hand_writings, transcriptions):
-        pass
-
-    def process(self, hand_writings, transcriptions):
-        inp_seqs = []
-        for points in hand_writings:
-            if len(points) % 2 != 0:
-                points = points[:-1]
-
-            it = iter(points)
-            inp_seqs.append(list(zip(it, it)))
-
-        return inp_seqs, transcriptions
-
-
-class Normalization(ProcessingStep):
+class NormalizationStep(ProcessingStep):
     def __init__(self):
-        self._mu = None
-        self._std = None
+        self._normalizer = Normalizer()
 
-    def fit(self, hand_writings, transcriptions):
-        self._mu = np.mean(hand_writings, axis=0)
-        self._std = np.std(hand_writings, axis=0)
+    def fit(self, data):
+        xs = (in_seq for in_seq, _ in data)
+        self._normalizer.fit(xs)
 
-    def remove_constant_columns(self, a, epsilon=0.0001):
-        all_column_indices = np.arange(len(a.shape[1]))
-        column_indices = all_column_indices[self._std > epsilon]
-        return a[:, column_indices]
+    def process_example(self, x, y):
+        norm = self._normalizer.preprocess([x])[0]
+        return norm, y
 
-    def process(self, hand_writings, transcriptions):
-        epsilon = 0.001
-        a = (np.array(hand_writings) - self._mu) / (self._std + epsilon)
+    def set_parameters(self, params_dict):
+        mu = params_dict['mu']
+        sd = params_dict['sd']
+        self._normalizer.set_mean(mu)
+        self._normalizer.set_deviation(sd)
 
-        return a.tolist(), transcriptions
+    def get_parameters(self):
+        return {
+            'mu': self._normalizer.mu,
+            'sd': self._normalizer.sd
+        }
+
+
+class DummyStep(ProcessingStep):
+    def fit(self, data):
+        self.s = sum((xs for xs, ys in data))
+
+    def process_example(self, x, y):
+        return x + self.s, y
+
+    def set_parameters(self, params_dict):
+        self.s = params_dict['sum']
+
+    def get_parameters(self):
+        return {'sum': self.s}
+
+
+class TextStorage:
+    def __init__(self, path):
+        self._path = path
+
+    def save(self, s):
+        with open(self._path, 'w') as f:
+            f.write(s)
+
+    def load(self):
+        with open(self._path, 'r') as f:
+            return f.read()
 
 
 class PreProcessor:
-    def __init__(self):
+    def __init__(self, steps):
+        self._steps = steps
+
+    @property
+    def steps(self):
+        return self._steps
+
+    def fit(self, source):
+        gen = ((xs, ys) for xs, ys in source.get_sequences())
+
+        for i, step in enumerate(self._steps):
+            step.fit(gen)
+            stop_index = i + 1
+            gen = (self._preprocess(xs, ys, stop_index) for xs, ys in source.get_sequences())
+
+    def _preprocess(self, x, y, stop_index):
+        for i, step in enumerate(self._steps):
+            if i >= stop_index:
+                break
+
+            x, y = step.process_example(x, y)
+
+        return x, y
+
+    def pre_process_example(self, x, y):
+        return self._preprocess(x, y, stop_index=len(self._steps))
+
+    def save(self, storage):
+        steps = []
+        for step in self._steps:
+            steps.append({
+                'class_name': step.__class__.__name__,
+                'params': step.get_parameters()
+            })
+        d = {'steps': steps}
+
+        s = json.dumps(d)
+        storage.save(s)
+
+    def load(self, storage):
+        s = storage.load()
+
+        d = json.loads(s)
+
+        print(d['steps'])
         self._steps = []
+        import sys
+        this_module = sys.modules[__name__]
+        for info in d['steps']:
+            cls_name = info['class_name']
+            params = info['params']
+            print(cls_name)
+            cls = getattr(this_module, cls_name)
 
-    def add_step(self, step):
-        self._steps.append(step)
-
-    def fit(self, hand_writings, transcriptions):
-        for step in self._steps:
-            step.fit(hand_writings, transcriptions)
-            hand_writings, transcriptions = step.process(hand_writings, transcriptions)
-
-    def process(self, hand_writings, transcriptions):
-        for step in self._steps:
-            hand_writings, transcriptions = step.process(hand_writings, transcriptions)
-
-        return hand_writings, transcriptions
+            step = cls()
+            step.set_parameters(params)
+            self._steps.append(step)

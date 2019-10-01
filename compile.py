@@ -25,6 +25,7 @@ class ConstrainedSource(BaseSourceWrapper):
 
 if __name__ == '__main__':
     import argparse
+    from sources.wrappers import NormalizedSource
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./')
@@ -59,4 +60,5 @@ if __name__ == '__main__':
     normalizer.to_json(mu_sd_destination)
 
     for i in range(len(file_names)):
-        CompilationSource.compile_data(sources[i], destinations[i], normalizer)
+        source = NormalizedSource(sources[i], normalizer)
+        CompilationSource.compile_data(source, destinations[i])

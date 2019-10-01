@@ -83,9 +83,7 @@ class CompilationSource(BaseSource):
         self._random = random_order
 
     @staticmethod
-    def compile_data(source, destination, normalizer):
-        source = NormalizedSource(source, normalizer)
-
+    def compile_data(source, destination):
         h5py_data = H5pyDataSet.create(destination)
 
         for xs, ys in source.get_sequences():

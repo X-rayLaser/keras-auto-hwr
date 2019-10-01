@@ -1,31 +1,35 @@
-from data.factories import Seq2seqFactory, AttentionalSeq2seqFactory
 from data.char_table import CharacterTable
 from sources.compiled import CompilationSource
+from models.seq2seq import SequenceToSequenceTrainer
+from data.generators import DataSetGenerator
+import os
+from data.preprocessing import PreProcessor
 
 
 def train(data_path, max_examples, lrate, epochs):
-    charset = ''.join([chr(i) for i in range(32, 128)])
-    char_table = CharacterTable(charset)
+    char_table = CharacterTable()
 
-    source = CompilationSource(data_path)
+    train_path = os.path.join(data_path, 'train.h5py')
+    val_path = os.path.join(data_path, 'validation.h5py')
 
-    factory = AttentionalSeq2seqFactory(data_source=source,
-                                        char_table=char_table,
-                                        num_examples=max_examples)
+    train_source = CompilationSource(train_path, max_examples)
 
-    factory.prepare_sources()
-    train_gen = factory.training_generator()
-    val_gen = factory.validation_generator()
+    val_source = CompilationSource(val_path, max(1, max_examples // 2))
 
-    trainer = factory.create_model()
-    batch_size = 16
-    validation_steps = 4
+    trainer = SequenceToSequenceTrainer(char_table, input_channels=4)
+
+    preprocessor = PreProcessor()
+    train_gen = DataSetGenerator(train_source, char_table, preprocessor, channels=4)
+    val_gen = DataSetGenerator(val_source, char_table, preprocessor, channels=4)
+
+    batch_size = 1
+    validation_steps = len(val_source)
     trainer.fit_generator(
         lrate,
         train_gen,
         val_gen,
         train_gen.get_examples(batch_size=batch_size),
-        steps_per_epoch=int(len(train_gen) / batch_size) + 1,
+        steps_per_epoch=len(train_gen) / batch_size,
         validation_data=val_gen.get_examples(batch_size),
         validation_steps=validation_steps,
         epochs=epochs)
