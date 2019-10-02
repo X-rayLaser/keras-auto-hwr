@@ -161,8 +161,3 @@ class PredictorTests(TestCase):
         self.assertEqual(output_decoder.args, (classes,))
 
         self.assertEqual(res, output)
-
-
-# todo: check model.predict parameters and output
-# todo: model.predict should return a list of class labels
-# todo: additional object is responsible for parsing those classes and turning them to final strings
