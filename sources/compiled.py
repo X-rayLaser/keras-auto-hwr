@@ -101,3 +101,15 @@ class CompilationSource(BaseSource):
     def __len__(self):
         h5py_data = H5pyDataSet(self._path)
         return min(self._num_lines, len(h5py_data))
+
+
+# todo: add code to compile data here
+# todo: use new preprocessor code
+# todo: method to save and retrieve information about preprocessing
+# todo: thin model classes
+# todo: reimplement generators
+# todo: write input adapters
+# todo: refactor predictors and estimators
+# todo: reimplement factory class
+# todo: replace get_sequences method with __iter__ implementation
+# todo: fix remaining code

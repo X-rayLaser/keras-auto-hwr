@@ -56,6 +56,8 @@ class H5pyRank3DataSet(H5pyDataSet):
             return strokes, ys
 
 
+# todo: use new class instance in data splitter
+
 class DataSplitter:
     def __init__(self, data_iterator, train_fraction=0.9, val_fraction=0.05):
         self._iter = data_iterator

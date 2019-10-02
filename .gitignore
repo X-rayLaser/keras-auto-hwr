@@ -8,5 +8,4 @@ demo/node_modules/
 logs/
 *.pyc
 \.idea/
-tests.py
 *.zip
