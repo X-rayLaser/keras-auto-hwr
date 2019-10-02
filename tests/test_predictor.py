@@ -1,43 +1,53 @@
 from unittest import TestCase
+import numpy as np
 
 
 class PreProcessorMock:
     def __init__(self, output):
-        self.counter = 0
         self.args = None
         self.output = output
 
     def pre_process(self, *args):
-        self.counter += 1
         self.args = args
         return self.output
 
 
 class InferenceModelMock:
-    def __init__(self):
-        self.predict_called = False
+    def __init__(self, output):
         self.args = None
+        self.output = output
 
     def predict(self, *args):
-        self.predict_called = True
         self.args = args
+        return self.output
 
 
 class InputAdapterMock:
-    def __init__(self):
-        self.called = False
+    def __init__(self, output):
         self.args = None
+        self.output = output
 
     def adapt_input(self, *args):
-        self.called = True
         self.args = args
+        return self.output
+
+
+class OutputDecoderMock:
+    def __init__(self, output):
+        self.args = None
+        self.output = output
+
+    def decode(self, *args):
+        self.args = args
+        return self.output
 
 
 class Predictor:
-    def __init__(self, model, preprocessor, input_adapter):
+    def __init__(self, model, preprocessor, input_adapter, output_decoder):
         self.model = model
         self.preprocessor = preprocessor
         self.input_adapter = input_adapter
+        self.decoder = output_decoder
 
     def _validate_list_of_lists(self, strokes):
         class_name = type(strokes).__name__
@@ -86,9 +96,10 @@ class Predictor:
 
     def predict(self, strokes):
         self._validate(strokes)
-        x = self.preprocessor.pre_process(strokes)
-        self.input_adapter.adapt_input(x)
-        self.model.predict()
+        processed = self.preprocessor.pre_process(strokes)
+        adapted = self.input_adapter.adapt_input(processed)
+        classes = self.model.predict(adapted)
+        return self.decoder.decode(classes)
 
 
 class UnexpectedInputException(Exception):
@@ -101,10 +112,12 @@ class ZeroLengthInputException(Exception):
 
 class PredictorTests(TestCase):
     def test_predict_with_invalid_input(self):
-        model = InferenceModelMock()
+        model = InferenceModelMock([])
         preprocessor = PreProcessorMock([])
-        input_adapter = InputAdapterMock()
-        predictor = Predictor(model, preprocessor, input_adapter)
+        input_adapter = InputAdapterMock([])
+        output_decoder = OutputDecoderMock('')
+
+        predictor = Predictor(model, preprocessor, input_adapter, output_decoder)
 
         self.assertRaises(UnexpectedInputException, lambda: predictor.predict(4))
 
@@ -125,27 +138,29 @@ class PredictorTests(TestCase):
 
         processed_strokes = [(1, 2), (3, 3)]
 
-        adapted_x = []
+        adapted_x = np.array(processed_strokes).reshape((1, 2, 2))
 
-        model = InferenceModelMock()
+        classes = [0, 2]
+
+        output = 'hello, world'
+
+        model = InferenceModelMock(classes)
         preprocessor = PreProcessorMock(processed_strokes)
-        input_adapter = InputAdapterMock()
-        predictor = Predictor(model, preprocessor, input_adapter)
+        input_adapter = InputAdapterMock(adapted_x)
+        output_decoder = OutputDecoderMock(output)
+        predictor = Predictor(model, preprocessor, input_adapter, output_decoder)
 
-        predictor.predict(strokes)
-
-        self.assertEqual(preprocessor.counter, 1)
-        self.assertEqual(preprocessor.counter, 1)
+        res = predictor.predict(strokes)
 
         self.assertEqual(preprocessor.args, (strokes, ))
 
-        self.assertTrue(input_adapter.called)
-
         self.assertEqual(input_adapter.args, (processed_strokes,))
 
-        self.assertTrue(model.predict_called)
+        self.assertEqual(model.args, (adapted_x,))
 
-        #self.assertEqual(model.args, (processed_strokes,))
+        self.assertEqual(output_decoder.args, (classes,))
+
+        self.assertEqual(res, output)
 
 
 # todo: check model.predict parameters and output
