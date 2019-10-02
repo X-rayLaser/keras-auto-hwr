@@ -102,6 +102,12 @@ class CompilationSource(BaseSource):
         h5py_data = H5pyDataSet(self._path)
         return min(self._num_lines, len(h5py_data))
 
+    @property
+    def batch_shape(self):
+        x, _ = list(self.get_sequences())[0]
+        n = len(x[0])
+        return len(self), None, n
+
 
 # todo: add code to compile data here
 # todo: use new preprocessor code

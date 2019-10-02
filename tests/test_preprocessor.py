@@ -9,15 +9,21 @@ class PreProcessorTests(unittest.TestCase):
         def fit(self, data):
             pass
 
-        def process_example(self, x, y):
-            return x + 1, y + 1
+        def process_x(self, x):
+            return x + 1
+
+        def process_y(self, y):
+            return y + 1
 
     class MultiplyingStep(ProcessingStep):
         def fit(self, data):
             pass
 
-        def process_example(self, x, y):
-            return x * 2, y * 2
+        def process_x(self, x):
+            return x * 2
+
+        def process_y(self, y):
+            return y * 2
 
     class DummyStorage:
         def save(self, s):
@@ -38,6 +44,12 @@ class PreProcessorTests(unittest.TestCase):
         x, y = preprocessor.pre_process_example(2, 5)
         self.assertEqual(x, 6)
         self.assertEqual(y, 12)
+
+    def test_process_only_input(self):
+        preprocessor = PreProcessor(steps=[self.AddingStep(),
+                                           self.MultiplyingStep()])
+        x = preprocessor.pre_process(2)
+        self.assertEqual(x, 6)
 
     def test_order_of_steps_matters(self):
         preprocessor = PreProcessor(steps=[self.MultiplyingStep(),

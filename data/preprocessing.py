@@ -11,8 +11,16 @@ class ProcessingStep:
     def fit(self, data):
         pass
 
-    def process_example(self, x, y):
+    def process_x(self, x):
         raise NotImplementedError
+
+    def process_y(self, y):
+        return y
+
+    def process_example(self, x, y):
+        x = self.process_x(x)
+        y = self.process_y(y)
+        return x, y
 
     def get_parameters(self):
         return {}
@@ -31,10 +39,9 @@ class OffsetStep(ProcessingStep):
             new_seq.extend(points)
         return new_seq
 
-    def process_example(self, x, y):
+    def process_x(self, x):
         x0, y0, t0 = x.points[0]
-        new_seq = self._pre_process(x, x0, y0, t0)
-        return new_seq, y
+        return self._pre_process(x, x0, y0, t0)
 
     def set_parameters(self, params_dict):
         pass
@@ -48,9 +55,8 @@ class NormalizationStep(ProcessingStep):
         xs = (in_seq for in_seq, _ in data)
         self._normalizer.fit(xs)
 
-    def process_example(self, x, y):
-        norm = self._normalizer.preprocess([x])[0]
-        return norm, y
+    def process_x(self, x):
+        return self._normalizer.preprocess([x])[0]
 
     def set_parameters(self, params_dict):
         mu = params_dict['mu']
@@ -69,8 +75,8 @@ class DummyStep(ProcessingStep):
     def fit(self, data):
         self.s = sum((xs for xs, ys in data))
 
-    def process_example(self, x, y):
-        return x + self.s, y
+    def process_x(self, x):
+        return x + self.s
 
     def set_parameters(self, params_dict):
         self.s = params_dict['sum']
@@ -119,6 +125,12 @@ class PreProcessor:
 
     def pre_process_example(self, x, y):
         return self._preprocess(x, y, stop_index=len(self._steps))
+
+    def pre_process(self, x):
+        for step in self._steps:
+            x = step.process_x(x)
+
+        return x
 
     def save(self, storage):
         steps = []
