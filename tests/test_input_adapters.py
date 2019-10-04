@@ -15,82 +15,151 @@ class ExampleAdapter:
         pass
 
 
-class CTCAdapter(ExampleAdapter):
-    def adapt_input(self, xs):
-        Tx = len(xs)
-        n = len(xs[0])
-        return np.array(xs).reshape((1, Tx, n))
+class EmptyListException(Exception):
+    pass
 
-    def _pad_input_sequences(self, seqs_in):
-        max_length = max([len(seq) for seq in seqs_in])
-        n = len(seqs_in[0][0])
+
+class BadInputShapeException(Exception):
+    pass
+
+
+class CTCAdapter(ExampleAdapter):
+    def __init__(self):
+        self.character_table = CharacterTable()
+
+    def _validate_shape(self, x, rank):
+        msg = 'Input should be a list analog of rank {} numpy array.' \
+              ' Got {}'.format(rank, x)
+        try:
+            a = np.array(x)
+        except Exception:
+            raise BadInputShapeException(msg)
+        else:
+            if len(a.shape) != rank:
+                raise BadInputShapeException(msg)
+            if a.shape[0] == 0 or a.shape[1] == 0:
+                msg = 'All dimensions should be non zero. Got {}'.format(x)
+                raise BadInputShapeException(msg)
+
+    def _validate_single_input(self, xs):
+        if len(xs) <= 0:
+            raise EmptyListException()
+
+        self._validate_shape(xs, rank=2)
+
+    def _validate_batch_input(self, seqs_in):
+        if len(seqs_in) <= 0:
+            raise EmptyListException('seqs_in is empty')
+
+        for s in seqs_in:
+            self._validate_shape(s, rank=2)
+
+        seqs_in = self._pad_input_sequences(seqs_in)
+        self._validate_shape(seqs_in, rank=3)
+
+    def adapt_input(self, xs):
+        self._validate_single_input(xs)
+        sequence_length = len(xs)
+        num_features = len(xs[0])
+
+        return np.array(xs).reshape((1, sequence_length, num_features))
+
+    def _max_length(self, sequences):
+        return max([len(seq) for seq in sequences])
+
+    def _pad_input_sequences(self, seqs_in, padding_value=0):
+        max_length = self._max_length(seqs_in)
+        num_features = len(seqs_in[0][0])
 
         new_input_seq = []
         for seq in seqs_in:
             s = list(seq)
             while len(s) < max_length:
-                s.append([0] * n)
+                s.append([padding_value] * num_features)
             new_input_seq.append(s)
 
         return new_input_seq
 
     def _pad_output_sequences(self, seqs_out):
-        max_length = max([len(seq) for seq in seqs_out])
+        max_length = self._max_length(seqs_out)
 
         padded_seqs = []
-        char_table = CharacterTable()
         for seq in seqs_out:
             s = str(seq)
             while len(s) < max_length:
-                s += char_table.sentinel
+                s += self.character_table.sentinel
             padded_seqs.append(s)
 
         return padded_seqs
 
-    def _encode_output_sequences(self, seqs_out):
-        char_table = CharacterTable()
-
+    def _make_labels(self, seqs_out):
         labels = []
         for s in seqs_out:
-            seq = [char_table.encode(ch) for ch in s]
+            seq = [self.character_table.encode(ch) for ch in s]
             labels.append(seq)
+
+        sequence_length = len(labels[0])
+        alphabet_size = len(self.character_table)
+        labels = to_categorical(labels, num_classes=alphabet_size)
+        labels = labels.reshape(-1, sequence_length, alphabet_size)
         return labels
 
+    def _make_lengths(self, sequences):
+        batch_size = len(sequences)
+        a = np.array([len(s) for s in sequences], dtype=np.int32)
+        return a.reshape(batch_size, 1)
+
     def adapt_batch(self, seqs_in, seqs_out):
+        self._validate_batch_input(seqs_in)
+
         new_input_seq = self._pad_input_sequences(seqs_in)
         new_output_seq = self._pad_output_sequences(seqs_out)
 
         X = np.array(new_input_seq)
 
-        char_table = CharacterTable()
+        labels = self._make_labels(new_output_seq)
 
-        labels = self._encode_output_sequences(new_output_seq)
+        input_lengths = self._make_lengths(seqs_in)
+        label_lengths = self._make_lengths(seqs_out)
 
-        Ty = len(labels[0])
-        labels = to_categorical(labels, num_classes=len(char_table))
-        labels = labels.reshape(-1, Ty, len(char_table))
-
-        input_lengths = np.zeros((len(seqs_out), 1))
-        label_lengths = np.zeros_like(input_lengths)
-
-        for i in range(len(seqs_out)):
-            input_lengths[i, 0] = len(new_input_seq[i])
-            label_lengths[i, 0] = len(seqs_out[i])
-
-        inputs = [X, labels, input_lengths, label_lengths]
-        outputs = seqs_out
-        return inputs, outputs
+        return [X, labels, input_lengths, label_lengths], seqs_out
 
 
 class CTCAdapterTests(TestCase):
     def setUp(self):
-        seqs_in = [
+        self.seqs_in = [
             [[0, 1], [1, 2]],
             [[2, 4]]
         ]
-        seqs_out = ['A', 'bc']
-        self.seqs_in = seqs_in
-        self.seqs_out = seqs_out
+
+        self.seqs_out = ['A', 'bc']
+
+        self.expected_X = np.array([
+            self.seqs_in[0],
+            self.seqs_in[1] + [[0, 0]]
+        ])
+
+        char_table = CharacterTable()
+
+        expected_labels = [
+            [char_table.encode('A'), char_table.encode(char_table.sentinel)],
+            [char_table.encode('b'), char_table.encode('c')]
+        ]
+
+        x_len1 = len(self.seqs_in[0])
+        x_len2 = len(self.seqs_in[1])
+
+        y_len1 = len(self.seqs_out[0])
+        y_len2 = len(self.seqs_out[1])
+
+        max_y_len = max(y_len1, y_len2)
+
+        self.expected_labels = to_categorical(
+            expected_labels, len(char_table)
+        ).reshape(max_y_len, max_y_len, len(char_table))
+
+        self.expected_input_lengths = np.array([[x_len1], [x_len2]])
+        self.expected_label_lengths = np.array([[y_len1], [y_len2]])
 
     def test_adapt_input(self):
         adapter = CTCAdapter()
@@ -103,21 +172,48 @@ class CTCAdapterTests(TestCase):
         self.assertEqual(res.shape, expected_shape)
         self.assertEqual(res.tolist(), expected_res.tolist())
 
-    def test_adapt_batch_returns_correct_X(self):
+    def test_adapt_input_with_invalid_shape(self):
         adapter = CTCAdapter()
 
-        expected_X = np.array([
-            self.seqs_in[0],
-            self.seqs_in[1] + [[0, 0]]
-        ])
+        xs = [[[0, 1, 3], [1, 2, 4]]]
+
+        self.assertRaises(EmptyListException,
+                          lambda: adapter.adapt_input([]))
+
+        self.assertRaises(BadInputShapeException,
+                          lambda: adapter.adapt_input(xs))
+
+        self.assertRaises(BadInputShapeException,
+                          lambda: adapter.adapt_input([[]]))
+
+    def test_adapt_batch_called_with_invalid_parameters(self):
+        adapter = CTCAdapter()
+
+        self.assertRaises(EmptyListException,
+                          lambda: adapter.adapt_batch([], ''))
+
+        self.assertRaises(BadInputShapeException,
+                          lambda: adapter.adapt_batch([3], ''))
+
+        self.assertRaises(BadInputShapeException,
+                          lambda: adapter.adapt_batch([[[3, 4], [2]]], ''))
+
+        self.assertRaises(BadInputShapeException,
+                          lambda: adapter.adapt_batch([[[3, 4], [2]]], ''))
+
+        self.assertRaises(BadInputShapeException,
+                          lambda: adapter.adapt_batch([[[3, 4], []]], ''))
+
+    def test_adapt_batch_returns_correct_X(self):
+        adapter = CTCAdapter()
 
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         X = res_inp[0]
 
         self.assertIsInstance(X, np.ndarray)
-        self.assertEqual(X.shape, (2, 2, 2))
-        self.assertEqual(X.tolist(), expected_X.tolist())
+        self.assertEqual(X.shape, self.expected_X.shape)
+        self.assertEqual(X.tolist(), self.expected_X.tolist())
 
     def test_adapt_batch_does_not_modify_passed_arguments(self):
         adapter = CTCAdapter()
@@ -133,39 +229,28 @@ class CTCAdapterTests(TestCase):
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         labels = res_inp[1]
-        char_table = CharacterTable()
-        expected_labels = [
-            [char_table.encode('A'), char_table.encode(char_table.sentinel)],
-            [char_table.encode('b'), char_table.encode('c')]
-        ]
 
-        expected_labels = to_categorical(expected_labels, len(char_table)).reshape(2, 2, len(char_table))
         self.assertIsInstance(labels, np.ndarray)
-        self.assertEqual(labels.tolist(), expected_labels.tolist())
+        self.assertEqual(labels.tolist(), self.expected_labels.tolist())
 
     def test_adapt_batch_returns_correct_input_lengths(self):
         adapter = CTCAdapter()
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         input_lengths = res_inp[2]
-        expected_lengths = np.array([[2], [2]])
 
         self.assertIsInstance(input_lengths, np.ndarray)
-        self.assertEqual(input_lengths.shape, expected_lengths.shape)
-        self.assertEqual(input_lengths.tolist(), expected_lengths.tolist())
+        self.assertEqual(input_lengths.shape,
+                         self.expected_input_lengths.shape)
+        self.assertEqual(input_lengths.tolist(),
+                         self.expected_input_lengths.tolist())
 
     def test_adapt_batch_returns_correct_label_lengths(self):
         adapter = CTCAdapter()
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         label_lengths = res_inp[3]
-        expected_lengths = np.array([[1], [2]])
 
         self.assertIsInstance(label_lengths, np.ndarray)
-        self.assertEqual(label_lengths.tolist(), expected_lengths.tolist())
-
-
-
-# todo: consider removing padding for both input and output sequences
-# todo: test more edge cases
-# todo: clean up
+        self.assertEqual(label_lengths.tolist(),
+                         self.expected_label_lengths.tolist())
