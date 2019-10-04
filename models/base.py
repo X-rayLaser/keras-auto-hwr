@@ -47,6 +47,41 @@ class BeamCandidate:
         return BeamCandidate(seq, character, likelihood, state)
 
 
+class PathBuilder:
+    def __init__(self, roots):
+        self._roots = roots
+        self._paths = [[root] for root in roots]
+
+    def make_step(self, pmfs):
+        for label, p, joint_p in self._roots:
+            new_p = joint_p * np.array(pmfs[0])
+            candidate_pmfs = new_p
+
+        label = candidate_pmfs.argmax()
+        joint_p = candidate_pmfs.max()
+        self._paths[0].append((label, joint_p, joint_p))
+
+    @property
+    def best_path(self):
+        best_joint_p = 0
+        best_index = 0
+        for i, path in enumerate(self._paths):
+            label, p, joint_p = path[-1]
+            if joint_p > best_joint_p:
+                best_joint_p = joint_p
+                best_index = i
+
+        return [label for label, p, joint_p in self._paths[best_index]]
+
+    @property
+    def paths(self):
+        res = []
+        for path in self._paths:
+            tmp = [label for label, p, joint_p in path]
+            res.append(tmp)
+        return res
+
+
 class BaseBeamSearch:
     def __init__(self, char_table, beam_size=3, max_len=150):
         self._char_table = char_table

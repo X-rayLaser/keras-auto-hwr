@@ -1,6 +1,7 @@
 from unittest import TestCase
-from models.base import BaseBeamSearch
+from models.base import BaseBeamSearch, BeamCandidate
 from data.char_table import CharacterTable
+from models.base import PathBuilder
 
 
 class DummyDecoder:
@@ -52,6 +53,48 @@ class DummyBeamSearch(BaseBeamSearch):
         return self.decoder.decode_next(prev_y, prev_state)
 
 
+class BeamCandidateTests(TestCase):
+    def test_branch_off(self):
+        candidate = BeamCandidate(full_sequence='Hello', character='o',
+                                  likelihood=0.3, state=9)
+
+        self.assertEqual(candidate.full_sequence, 'Hello')
+
+        self.assertEqual(candidate.character, 'o')
+        self.assertEqual(candidate.likelihood, 0.3)
+        self.assertEqual(candidate.state, 9)
+
+        next_candidate = candidate.branch_off(character=',',
+                                              likelihood=0.5, state=4)
+
+        self.assertEqual(next_candidate.full_sequence, 'Hello,')
+        self.assertEqual(next_candidate.character, ',')
+        self.assertEqual(next_candidate.likelihood, 0.5)
+        self.assertEqual(next_candidate.state, 4)
+
+
+class PathBuilderTests(TestCase):
+    def test_after_initialization(self):
+        roots = [(2, 0.1, 0.1), (5, 0.3, 0.3)]
+        builder = PathBuilder(roots)
+        self.assertEqual(builder.best_path, [5])
+
+        self.assertEqual(len(builder.paths), 2)
+        self.assertEqual(builder.paths[0], [2])
+        self.assertEqual(builder.paths[1], [5])
+
+    def test_make_step(self):
+        roots = [(0, 0.1, 0.1)]
+        builder = PathBuilder(roots)
+
+        pmfs = [
+            [0.3, 0.5, 0.2]
+        ]
+        builder.make_step(pmfs)
+
+        self.assertEqual(builder.best_path, [0, 1])
+
+
 class BeamSearchTests(TestCase):
     def test_max_length_constraint(self):
         char_table = CharacterTable()
@@ -90,4 +133,6 @@ class BeamSearchTests(TestCase):
         self.assertEqual(s, result)
 
 
+# todo: finish development of PathBuilder class
+# todo: change implementation of BaseBeamSearch
 # todo: test beam search with beam_size > 1
