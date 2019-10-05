@@ -47,56 +47,132 @@ class BeamCandidate:
         return BeamCandidate(seq, character, likelihood, state)
 
 
+class SearchPath:
+    def __init__(self, path=None):
+        if path is None:
+            self._path = []
+        else:
+            self._path = path
+
+    def branch_off(self, label, p):
+        path = self._path + [(label, p)]
+        return SearchPath(path)
+
+    @property
+    def labels(self):
+        return [label for label, p in self._path]
+
+    @property
+    def likelihood(self):
+        if self._path:
+            probs = [p for label, p in self._path]
+            res = 1
+            for p in probs:
+                res *= p
+            return res
+        return 0
+
+
 class PathBuilder:
     def __init__(self, roots):
-        self._roots = roots
-        self._paths = [[root] for root in roots]
+        self._paths = []
+        for label, p in roots:
+            search_path = SearchPath()
+            search_path = search_path.branch_off(label, p)
+            self._paths.append(search_path)
 
     def make_step(self, pmfs):
-        for label, p, joint_p in self._roots:
-            new_p = joint_p * np.array(pmfs[0])
-            candidate_pmfs = new_p
+        if len(pmfs) != len(self._paths):
+            raise WrongNumberOfPMFsException()
 
-        label = candidate_pmfs.argmax()
-        joint_p = candidate_pmfs.max()
-        self._paths[0].append((label, joint_p, joint_p))
+        candidates = []
+        for i in range(len(self._paths)):
+            search_path = self._paths[i]
+            pmf = pmfs[i]
+            for label, p in enumerate(pmf):
+                candidates.append(search_path.branch_off(label, p))
+
+        self._paths = self._best_paths(candidates, limit=len(pmfs))
+
+    def _best_paths(self, paths, limit):
+        return sorted(paths, key=lambda c: c.likelihood, reverse=True)[:limit]
 
     @property
     def best_path(self):
-        best_joint_p = 0
-        best_index = 0
-        for i, path in enumerate(self._paths):
-            label, p, joint_p = path[-1]
-            if joint_p > best_joint_p:
-                best_joint_p = joint_p
-                best_index = i
-
-        return [label for label, p, joint_p in self._paths[best_index]]
+        best_path = self._best_paths(self._paths, limit=1)[0]
+        return best_path.labels
 
     @property
     def paths(self):
         res = []
-        for path in self._paths:
-            tmp = [label for label, p, joint_p in path]
-            res.append(tmp)
+        for search_path in self._paths:
+            res.append(search_path.labels)
         return res
 
 
+class WrongNumberOfPMFsException(Exception):
+    pass
+
+
+class StatesKeeper:
+    def __init__(self, initial_state):
+        self._paths = {}
+        self._initial_state = initial_state
+
+    def store(self, path, state):
+        self._paths[tuple(path)] = state
+
+    def retrieve(self, path):
+        if path:
+            return self._paths[tuple(path)]
+        else:
+            return self._initial_state
+
+
 class BaseBeamSearch:
-    def __init__(self, char_table, beam_size=3, max_len=150):
-        self._char_table = char_table
+    def __init__(self, start_of_seq, end_of_seq, beam_size=3, max_len=150):
+        self._sos = start_of_seq
+        self._eos = end_of_seq
         self._beam_size = beam_size
         self._max_len = max_len
 
+    def _without_last(self, path):
+        return path[:-1]
+
+    def _remove_special(self, path):
+        path = path[1:]
+        if path[-1] == self._eos:
+            return self._without_last(path)
+        return path
+
+    def _split_path(self, path):
+        prefix = self._without_last(path)
+        last_one = path[-1]
+        return prefix, last_one
+
     def generate_sequence(self):
-        char_table = self._char_table
-        ch = char_table.start
+        y0 = self._sos
 
         decoder_state = self.get_initial_state()
-        candidates = [BeamCandidate(full_sequence=ch, character=ch,
-                                    likelihood=0, state=decoder_state)]
 
-        return self._beam_search(candidates)
+        keeper = StatesKeeper(decoder_state)
+
+        builder = PathBuilder([(y0, 1.0)])
+
+        for _ in range(self._max_len):
+            pmfs = []
+            for path in builder.paths:
+                prefix, label = self._split_path(path)
+                state = keeper.retrieve(prefix)
+                next_pmf, next_state = self.decode_next(label, state)
+                keeper.store(path, next_state)
+                pmfs.append(next_pmf)
+
+            builder.make_step(pmfs)
+            if builder.best_path[-1] == self._eos:
+                break
+
+        return self._remove_special(builder.best_path)
 
     def get_initial_state(self):
         raise NotImplementedError
@@ -104,49 +180,5 @@ class BaseBeamSearch:
     def decode_next(self, prev_y, prev_state):
         raise NotImplementedError
 
-    def _check_candidate(self, candidate):
-        index = self._char_table.encode(candidate.character)
-        v = np.zeros((1, 1, len(self._char_table)))
-        v[0, 0, index] = 1
-        next_p, next_state = self.decode_next(v, candidate.state)
 
-        joint_pmf = np.log(next_p) + candidate.likelihood
-
-        return joint_pmf, next_state
-
-    def _next_candidates(self, candidates, joint_pmfs, states):
-        a = np.array(joint_pmfs)
-
-        for _ in range(self._beam_size):
-            candidate_index = np.argmax(np.max(a, axis=1)).squeeze()
-            class_index = np.argmax(a[candidate_index])
-            max_p = np.max(a)
-            a[candidate_index, class_index] = 0
-
-            char = self._char_table.decode(class_index)
-            candidate = candidates[candidate_index]
-
-            yield candidate.branch_off(char, max_p, states[candidate_index])
-
-    def _end_of_sequence(self, best_candidate):
-        return best_candidate.character == self._char_table.sentinel or \
-               len(best_candidate.full_sequence) > self._max_len
-
-    def _beam_search(self, candidates):
-        joint_pmfs = []
-        states = []
-
-        for candidate in candidates:
-            joint_pmf, next_state = self._check_candidate(candidate)
-            joint_pmfs.append(joint_pmf)
-            states.append(next_state)
-
-        next_candidates = []
-        for next_one in self._next_candidates(candidates, joint_pmfs, states):
-            next_candidates.append(next_one)
-
-        best_one = next_candidates[0]
-        if self._end_of_sequence(best_one):
-            return best_one.full_sequence[1:]
-
-        return self._beam_search(next_candidates)
+# todo: consider better implementation for StatesKeeper
