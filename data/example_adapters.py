@@ -6,13 +6,13 @@ from data.char_table import CharacterTable
 
 class ExampleAdapter:
     def adapt_input(self, xs):
-        pass
+        raise NotImplementedError
 
     def adapt_output(self, ys):
-        pass
+        raise NotImplementedError
 
     def adapt_batch(self, seqs_in, seqs_out):
-        pass
+        raise NotImplementedError
 
 
 class EmptyListException(Exception):
