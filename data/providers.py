@@ -1,0 +1,2 @@
+class DummyProvider:
+    pass
