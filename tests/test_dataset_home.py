@@ -76,11 +76,6 @@ class DataSetHome:
         return DataSetHome(location_dir)
 
 
-class Storage:
-    def __init__(self, data):
-        self.data = data
-
-
 class FileSourceMock(BaseSource):
     def __init__(self, path):
         with open(path, 'r') as f:

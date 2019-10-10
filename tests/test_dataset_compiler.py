@@ -8,8 +8,8 @@ class DataRepoMock:
     def __init__(self):
         self.slices = []
 
-    def add_slice(self, data_slice):
-        self.slices.append(data_slice)
+    def add_slice(self):
+        self.slices.append([])
 
     def add_example(self, slice_index, x, y):
         self.slices[slice_index].append((x, y))
@@ -44,9 +44,9 @@ class DataSetCompiler:
         test_source = PreprocessedSource(self._splitter.test_data(),
                                          self._preprocessor)
 
-        self._repo.add_slice([])
-        self._repo.add_slice([])
-        self._repo.add_slice([])
+        self._repo.add_slice()
+        self._repo.add_slice()
+        self._repo.add_slice()
 
         for xs, ys in train_source.get_sequences():
             self._repo.add_example(0, xs, ys)

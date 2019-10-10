@@ -9,7 +9,7 @@ class ApiTests(TestCase):
     def setUp(self):
         self.name = 'dummy'
         self.provider = 'DummyProvider'
-        self.preprocessor = 'DummyPreprocessor'
+        self.preprocessor = 'dummy_preprocessor'
         self.num_examples = 3
         self.home = api.CompilationHome(self.name)
 
@@ -50,7 +50,7 @@ class ApiTests(TestCase):
         info = json.loads(s)
         self.assertEqual(info, {
             'location': self.home.root_dir,
-            'preprocessor': 'DummyPreprocessor',
+            'preprocessor': 'dummy_preprocessor',
             'provider': 'DummyProvider',
             'number of examples': self.num_examples
         })
@@ -59,7 +59,7 @@ class ApiTests(TestCase):
         return
         ds = api.data_set(self.name)
 
-        train, val, test = ds.partitions
+        train, val, test = ds.get_slices()
 
         m = len(train) + len(val) + len(test)
         self.assertEqual(m, self.num_examples)

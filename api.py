@@ -1,6 +1,11 @@
 import json
 import os
 from data import providers, preprocessors
+from tests.test_dataset_home import DataSetHome
+from tests.test_dataset_compiler import DataSetCompiler
+from data.preprocessing import PreProcessor
+from data.factories import DataSplitter
+from sources.compiled import H5pyDataSet
 
 
 class CompilationHome:
@@ -13,6 +18,28 @@ class CompilationHome:
         self.train_path = os.path.join(path, 'train')
         self.val_path = os.path.join(path, 'validation')
         self.test_path = os.path.join(path, 'test')
+
+
+class DataRepoMock:
+    def __init__(self, location):
+        self._location = location
+        self.slices = []
+        self._slice_names = ['train', 'validation', 'test']
+        self._counter = 0
+
+    def add_slice(self):
+        print('jfliaejfliajelifjeifjlij')
+
+        name = self._slice_names[self._counter]
+        path = os.path.join(self._location, name)
+
+        ds = H5pyDataSet.create(path)
+        self.slices.append(ds)
+        self._counter += 1
+
+    def add_example(self, slice_index, x, y):
+        print('EHAILEFJLEIJFIJ')
+        self.slices[slice_index].append((x, y))
 
 
 def compile_data_set(data_provider, preprocessor_name, name, num_examples):
@@ -31,15 +58,20 @@ def compile_data_set(data_provider, preprocessor_name, name, num_examples):
     if not os.path.isdir(home.root_dir):
         os.makedirs(home.root_dir)
 
-    from data.compiler import DataSetCompiler
-    from data.preprocessing import PreProcessor
+    steps = [step_cls(**params) for step_cls, params in preprocessor_steps]
 
-    #steps = [step_cls(**params) for step_cls, params in preprocessor_steps]
-
-    #preprocessor = PreProcessor(steps)
+    preprocessor = PreProcessor(steps)
 
     provider = provider_class()
-    #DataSetCompiler(provider, preprocessor, repo)
+    #splitter = DataSplitter(provider)
+    repo = DataRepoMock(home.root_dir)
+    #compiler = DataSetCompiler(provider, preprocessor, splitter, repo)
+
+    #compiler.compile()
+
+    data_set_home = DataSetHome.create(providers=[data_provider],
+                                       preprocessor=preprocessor,
+                                       slices=repo.slices)
 
     d = {
         'location': home.root_dir,
@@ -68,7 +100,10 @@ class DataSet:
 
 
 def data_set(name):
-    return DataSet()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    location = os.path.join(current_dir, name)
+    return DataSetHome(location)
 
 
 class ProviderNotFoundException(Exception):
