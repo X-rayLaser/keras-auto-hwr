@@ -73,9 +73,8 @@ class DataSplitter:
         self._train = H5pyDataSet.create(train_path)
         self._val = H5pyDataSet.create(val_path)
         self._test = H5pyDataSet.create(test_path)
-        self._split()
 
-    def _split(self):
+    def split(self):
         destination = (self._train, self._val, self._test)
 
         pmf = self._fractions

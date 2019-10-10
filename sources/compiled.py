@@ -5,6 +5,17 @@ import numpy as np
 import os
 
 
+class DataRepo:
+    def add_example(self, xs, ys):
+        raise NotImplementedError
+
+    def get_example(self, index):
+        raise NotImplementedError
+
+    def get_data(self, num_lines=None, random_order=False):
+        raise NotImplementedError
+
+
 class H5pyDataSet:
     def __init__(self, path):
         self._path = path

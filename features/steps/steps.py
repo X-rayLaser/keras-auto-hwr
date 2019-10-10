@@ -18,7 +18,7 @@ def step_impl(context, name, num_examples):
     provider = context.data_provider
     preprocessor = context.preprocessor
     context.num_examples = int(num_examples)
-    api.compile_data_set(data_provider=provider, preprocessor=preprocessor,
+    api.compile_data_set(data_provider=provider, preprocessor_name=preprocessor,
                          name=name, num_examples=num_examples)
 
 

@@ -15,33 +15,35 @@ class CompilationHome:
         self.test_path = os.path.join(path, 'test')
 
 
-def compile_data_set(data_provider, preprocessor, name, num_examples):
+def compile_data_set(data_provider, preprocessor_name, name, num_examples):
     try:
-        attr = getattr(providers, data_provider)
+        provider_class = getattr(providers, data_provider)
     except AttributeError:
         raise ProviderNotFoundException()
 
-    provider_class = attr.__name__
-
     try:
-        attr = getattr(preprocessors, preprocessor)
+        preprocessor_steps = getattr(preprocessors, preprocessor_name)
     except AttributeError:
         raise PreprocessorNotFoundException()
-
-    preprocessor_class = attr.__name__
 
     home = CompilationHome(name)
 
     if not os.path.isdir(home.root_dir):
         os.makedirs(home.root_dir)
 
-    os.makedirs(home.train_path, exist_ok=True)
-    os.makedirs(home.val_path, exist_ok=True)
-    os.makedirs(home.test_path, exist_ok=True)
+    from data.compiler import DataSetCompiler
+    from data.preprocessing import PreProcessor
+
+    #steps = [step_cls(**params) for step_cls, params in preprocessor_steps]
+
+    #preprocessor = PreProcessor(steps)
+
+    provider = provider_class()
+    #DataSetCompiler(provider, preprocessor, repo)
 
     d = {
         'location': home.root_dir,
-        'preprocessor': preprocessor,
+        'preprocessor': preprocessor_name,
         'provider': data_provider,
         'number of examples': num_examples
     }
