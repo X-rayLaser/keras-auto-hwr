@@ -119,11 +119,24 @@ class H5pyBufferFactory(BaseBufferFactory):
 
 
 class DataSplitter:
+    @staticmethod
+    def validate(source, training_fraction, validation_fraction):
+        if training_fraction > 1 or validation_fraction > 1:
+            raise BadFractionsException()
+
+        if training_fraction < 0 or validation_fraction < 0:
+            raise BadFractionsException()
+
+        if training_fraction + validation_fraction > 1:
+            raise BadFractionsException()
+
+        if len(source) < 3:
+            raise InsufficientNumberOfExamplesException()
+
     @classmethod
     def create(cls, source, training_fraction=0.9, validation_fraction=0.05):
+        cls.validate(source, training_fraction, validation_fraction)
         m = len(source)
-
-        assert m >= 3
 
         num_train = int(round(training_fraction * m))
         num_val = int(round(validation_fraction * m))
@@ -203,6 +216,14 @@ class DataSplitter:
 
     def test_data(self):
         return self._create_iterator(self._test)
+
+
+class BadFractionsException(Exception):
+    pass
+
+
+class InsufficientNumberOfExamplesException(Exception):
+    pass
 
 
 class BaseFactory:

@@ -1,6 +1,8 @@
 from unittest import TestCase
 from data.factories import DataSplitter, BaseBuffer, BaseBufferFactory
 from sources.base import BaseSource
+from data.factories import BadFractionsException
+from data.factories import InsufficientNumberOfExamplesException
 
 
 class SourceMock(BaseSource):
@@ -105,10 +107,8 @@ class DataSplitterTests(TestCase):
         self.validate_sizes(splitter, train_size, val_size, test_size)
 
     def test_would_make_zero_train_examples(self):
-        p_train = 0.05
-        p_val = 0.9
         splitter = DataSplitterBuffered.create(
-            self.source, training_fraction=p_train, validation_fraction=p_val
+            self.source, training_fraction=0.05, validation_fraction=0.9
         )
 
         splitter.split()
@@ -120,10 +120,8 @@ class DataSplitterTests(TestCase):
         self.validate_sizes(splitter, train_size, val_size, test_size)
 
     def test_would_make_zero_train_and_test_examples(self):
-        p_train = 0.05
-        p_val = 0.95
         splitter = DataSplitterBuffered.create(
-            self.source, training_fraction=p_train, validation_fraction=p_val
+            self.source, training_fraction=0.05, validation_fraction=0.95
         )
 
         splitter.split()
@@ -135,10 +133,8 @@ class DataSplitterTests(TestCase):
         self.validate_sizes(splitter, train_size, val_size, test_size)
 
     def test_would_make_zero_train_and_val_examples(self):
-        p_train = 0
-        p_val = 0
         splitter = DataSplitterBuffered.create(
-            self.source, training_fraction=p_train, validation_fraction=p_val
+            self.source, training_fraction=0, validation_fraction=0
         )
 
         splitter.split()
@@ -148,3 +144,29 @@ class DataSplitterTests(TestCase):
         test_size = total_size - train_size - val_size
 
         self.validate_sizes(splitter, train_size, val_size, test_size)
+
+    def validate_exception(self, source, p_train, p_val, exc):
+        self.assertRaises(
+            exc,
+            lambda: DataSplitterBuffered.create(
+                source, training_fraction=p_train, validation_fraction=p_val
+            )
+        )
+
+    def test_class_method_with_invalid_parameters(self):
+        self.validate_exception(self.source, 1.5, 0.3, BadFractionsException)
+
+        self.validate_exception(self.source, 0.2, 1.3, BadFractionsException)
+
+        self.validate_exception(self.source, -0.7, 0.9, BadFractionsException)
+
+        self.validate_exception(self.source, 0.7, -0.9, BadFractionsException)
+
+        self.validate_exception(self.source, 0.7, 0.9, BadFractionsException)
+
+        source = SourceMock()
+        source.examples = [(1, '1'), (2, '2')]
+
+        self.validate_exception(
+            source, 0.7, 0.1, InsufficientNumberOfExamplesException
+        )
