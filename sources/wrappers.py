@@ -1,5 +1,6 @@
 import numpy as np
 from sources import BaseSource
+from sources.base import BaseSourceWrapper
 from sources.preloaded import PreLoadedSource
 import json
 
@@ -203,3 +204,13 @@ class H5pySource(BaseSource):
 
     def get_sequences(self):
         return self._h5py.get_data(random_order=self._random)
+
+
+class PreprocessedSource(BaseSourceWrapper):
+    def __init__(self, source, preprocessor):
+        super().__init__(source)
+        self._preprocessor = preprocessor
+
+    def get_sequences(self):
+        for xs, ys in self._source.get_sequences():
+            yield self._preprocessor.pre_process_example(xs, ys)

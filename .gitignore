@@ -6,6 +6,7 @@ deployed/
 temp/
 demo/node_modules/
 logs/
+backup_weights/
 *.pyc
 \.idea/
 *.zip

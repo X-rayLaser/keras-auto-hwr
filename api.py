@@ -1,11 +1,11 @@
-import json
 import os
 from data import providers, preprocessors
-from tests.test_dataset_home import DataSetHome
-from tests.test_dataset_compiler import DataSetCompiler
+from data.data_set_home import DataSetHome
+from data.compiler import DataSetCompiler
 from data.preprocessing import PreProcessor
 from data.factories import DataSplitter
 from sources.compiled import H5pyDataSet
+from sources.wrappers import H5pySource
 
 
 class CompilationHome:
@@ -20,7 +20,7 @@ class CompilationHome:
         self.test_path = os.path.join(path, 'test')
 
 
-class DataRepoMock:
+class DataRepo:
     def __init__(self, location):
         self._location = location
         self.slices = []
@@ -37,9 +37,6 @@ class DataRepoMock:
 
     def add_example(self, slice_index, x, y):
         self.slices[slice_index].add_example(x, y)
-
-
-from sources.wrappers import H5pySource
 
 
 def create_source(path):
@@ -68,15 +65,15 @@ def compile_data_set(data_provider, preprocessor_name, name, num_examples):
 
     provider = provider_class()
     splitter = DataSplitter.create(provider)
-    repo = DataRepoMock(home.root_dir)
+    repo = DataRepo(home.root_dir)
     compiler = DataSetCompiler(preprocessor, splitter, repo)
 
     compiler.compile()
 
-    data_set_home = DataSetHome.create(providers=[data_provider],
-                                       preprocessor=preprocessor,
-                                       slices=repo.slices,
-                                       create_source=create_source)
+    DataSetHome.create(providers=[data_provider],
+                       preprocessor=preprocessor,
+                       slices=repo.slices,
+                       create_source=create_source)
 
 
 def data_set_info(name):
@@ -85,12 +82,6 @@ def data_set_info(name):
         s = f.read()
 
     return s
-
-
-class DataSet:
-    @property
-    def partitions(self):
-        return 0, 0, 0
 
 
 def data_set(name):
@@ -104,3 +95,7 @@ class ProviderNotFoundException(Exception):
 
 class PreprocessorNotFoundException(Exception):
     pass
+
+
+# todo: test without split
+# todo: test num_lines
