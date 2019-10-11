@@ -20,6 +20,10 @@ class H5pyDataSet:
     def __init__(self, path):
         self._path = path
 
+    @property
+    def location(self):
+        return self._path
+
     @staticmethod
     def create(path):
         if os.path.isfile(path):

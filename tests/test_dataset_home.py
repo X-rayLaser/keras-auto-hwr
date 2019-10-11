@@ -5,11 +5,13 @@ from data import preprocessing
 import os
 from sources.base import BaseSource
 import shutil
+from sources.compiled import H5pyDataSet
 
 
 class DataSetHome:
-    def __init__(self, location):
+    def __init__(self, location, create_source):
         self._location = location
+        self._create_source = create_source
 
     @property
     def meta_info(self):
@@ -37,12 +39,12 @@ class DataSetHome:
         slices = []
         for k, v in self.meta_info['slices'].items():
             path = self.slice_path(k)
-            source = FileSourceMock(path)
+            source = self._create_source(path)
             slices.append(source)
         return slices
 
     @staticmethod
-    def create(providers, preprocessor, slices):
+    def create(providers, preprocessor, slices, create_source):
         location_dir = ''
         slices_dict = {}
 
@@ -73,7 +75,7 @@ class DataSetHome:
             data = json.dumps(d)
             f.write(data)
 
-        return DataSetHome(location_dir)
+        return DataSetHome(location_dir, create_source)
 
 
 class FileSourceMock(BaseSource):
@@ -148,7 +150,7 @@ class DataSetHomeLoadingTests(TestCase):
         with open(meta_path, 'w') as f:
             f.write(data)
 
-        self.home = DataSetHome(self.home_dir)
+        self.home = DataSetHome(self.home_dir, lambda path: FileSourceMock(path))
 
     def tearDown(self):
         if os.path.isdir(self.home_dir):
@@ -196,6 +198,7 @@ class DataSetHomeLoadingTests(TestCase):
         data_slices = [FileSourceMock(self.train_path),
                        FileSourceMock(self.validation_path),
                        FileSourceMock(self.test_path)]
-        home = DataSetHome.create(providers, preprocessor, data_slices)
+        home = DataSetHome.create(providers, preprocessor,
+                                  data_slices, lambda path: FileSourceMock(path))
 
         self.assertEqual(home.meta_info, self.expected_dict)

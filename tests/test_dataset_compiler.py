@@ -26,8 +26,7 @@ class PreprocessedSource(BaseSourceWrapper):
 
 
 class DataSetCompiler:
-    def __init__(self, provider, preprocessor, splitter, repo):
-        self._provider = provider
+    def __init__(self, preprocessor, splitter, repo):
         self._preprocessor = preprocessor
         self._splitter = splitter
         self._repo = repo
@@ -102,7 +101,7 @@ class DataSetCompilerTests(TestCase):
         repo = DataRepoMock()
 
         splitter = DataSplitterMock(provider)
-        compiler = DataSetCompiler(provider, preprocessor, splitter, repo)
+        compiler = DataSetCompiler(preprocessor, splitter, repo)
 
         compiler.compile()
         self.assertTrue(splitter.called)
@@ -113,7 +112,7 @@ class DataSetCompilerTests(TestCase):
         repo = DataRepoMock()
         splitter = DataSplitterMock(provider)
 
-        compiler = DataSetCompiler(provider, preprocessor, splitter, repo)
+        compiler = DataSetCompiler(preprocessor, splitter, repo)
         compiler.compile()
         self.assertEqual(list(preprocessor.fit_arg.get_sequences()), [(1, '1')])
 
@@ -123,7 +122,7 @@ class DataSetCompilerTests(TestCase):
         repo = DataRepoMock()
         splitter = DataSplitterMock(provider)
 
-        compiler = DataSetCompiler(provider, preprocessor, splitter, repo)
+        compiler = DataSetCompiler(preprocessor, splitter, repo)
         compiler.compile()
         self.assertEqual(preprocessor.processed_args, [(1, '1'), (2, '2'), (3, '3')])
 
@@ -133,7 +132,7 @@ class DataSetCompilerTests(TestCase):
         repo = DataRepoMock()
         splitter = DataSplitterMock(provider)
 
-        compiler = DataSetCompiler(provider, preprocessor, splitter, repo)
+        compiler = DataSetCompiler(preprocessor, splitter, repo)
 
         compiler.compile()
 
@@ -148,3 +147,7 @@ class DataSetCompilerTests(TestCase):
         self.assertEqual(train, [(1, '1')])
         self.assertEqual(val, [(2, '2')])
         self.assertEqual(test, [(3, '3')])
+
+
+# todo: decorator class for provider that performs random shuffling using HDD as buffer
+# todo: use this decorator to pass it to splitter

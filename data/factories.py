@@ -11,6 +11,7 @@ from . import preprocessing
 from config import Config
 from sources.compiled import H5pyDataSet
 import h5py
+from sources.wrappers import H5pySource
 
 
 class H5pyRank3DataSet(H5pyDataSet):
@@ -197,16 +198,7 @@ class DataSplitter:
         assert len(self._train) > 0
 
     def _create_iterator(self, data_set):
-        from sources.base import BaseSource
-
-        class InlineSource(BaseSource):
-            def __len__(self):
-                return len(data_set)
-
-            def get_sequences(self):
-                return data_set.get_data(random_order=False)
-
-        return InlineSource()
+        return H5pySource(data_set, random_order=False)
 
     def train_data(self):
         return self._create_iterator(self._train)
@@ -343,7 +335,6 @@ class AttentionalSeq2seqFactory(BaseFactory):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        from config import Config
         conf = Config()
         self._num_cells = conf.config_dict['attention_model']['cells']
 

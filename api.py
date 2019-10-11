@@ -14,7 +14,7 @@ class CompilationHome:
         path = os.path.join(current_dir, 'compiled', name)
         self.root_dir = path
         self.name = name
-        self.meta_path = os.path.join(path, 'data_set.json')
+        self.meta_path = os.path.join(path, 'meta.json')
         self.train_path = os.path.join(path, 'train')
         self.val_path = os.path.join(path, 'validation')
         self.test_path = os.path.join(path, 'test')
@@ -28,8 +28,6 @@ class DataRepoMock:
         self._counter = 0
 
     def add_slice(self):
-        print('jfliaejfliajelifjeifjlij')
-
         name = self._slice_names[self._counter]
         path = os.path.join(self._location, name)
 
@@ -38,8 +36,14 @@ class DataRepoMock:
         self._counter += 1
 
     def add_example(self, slice_index, x, y):
-        print('EHAILEFJLEIJFIJ')
-        self.slices[slice_index].append((x, y))
+        self.slices[slice_index].add_example(x, y)
+
+
+from sources.wrappers import H5pySource
+
+
+def create_source(path):
+    return H5pySource(H5pyDataSet(path), random_order=False)
 
 
 def compile_data_set(data_provider, preprocessor_name, name, num_examples):
@@ -63,26 +67,16 @@ def compile_data_set(data_provider, preprocessor_name, name, num_examples):
     preprocessor = PreProcessor(steps)
 
     provider = provider_class()
-    #splitter = DataSplitter(provider)
+    splitter = DataSplitter.create(provider)
     repo = DataRepoMock(home.root_dir)
-    #compiler = DataSetCompiler(provider, preprocessor, splitter, repo)
+    compiler = DataSetCompiler(preprocessor, splitter, repo)
 
-    #compiler.compile()
+    compiler.compile()
 
     data_set_home = DataSetHome.create(providers=[data_provider],
                                        preprocessor=preprocessor,
-                                       slices=repo.slices)
-
-    d = {
-        'location': home.root_dir,
-        'preprocessor': preprocessor_name,
-        'provider': data_provider,
-        'number of examples': num_examples
-    }
-
-    s = json.dumps(d)
-    with open(home.meta_path, 'w') as f:
-        f.write(s)
+                                       slices=repo.slices,
+                                       create_source=create_source)
 
 
 def data_set_info(name):
@@ -100,10 +94,8 @@ class DataSet:
 
 
 def data_set(name):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-
-    location = os.path.join(current_dir, name)
-    return DataSetHome(location)
+    home = CompilationHome(name)
+    return DataSetHome(home.root_dir, create_source=create_source)
 
 
 class ProviderNotFoundException(Exception):

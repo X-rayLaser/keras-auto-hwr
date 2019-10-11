@@ -191,3 +191,15 @@ class DenormalizedSource(BaseSource):
                 p[3] = points[i][3]
 
             yield denormalized, transcription
+
+
+class H5pySource(BaseSource):
+    def __init__(self, h5py_ds, random_order=True):
+        self._h5py = h5py_ds
+        self._random = random_order
+
+    def __len__(self):
+        return len(self._h5py)
+
+    def get_sequences(self):
+        return self._h5py.get_data(random_order=self._random)

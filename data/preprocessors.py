@@ -1,5 +1,13 @@
+from data.preprocessing import ProcessingStep
+
+
 class DummyPreprocessor:
     pass
 
-from data.preprocessing import DummyStep
-dummy_preprocessor = []
+
+class AddOne(ProcessingStep):
+    def process_x(self, x):
+        return x + 1
+
+
+dummy_preprocessor = [(AddOne, {})]

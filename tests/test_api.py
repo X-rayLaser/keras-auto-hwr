@@ -1,8 +1,8 @@
 from unittest import TestCase
 import api
 import os
-import json
 import shutil
+from data.providers import DummyProvider
 
 
 class ApiTests(TestCase):
@@ -10,7 +10,7 @@ class ApiTests(TestCase):
         self.name = 'dummy'
         self.provider = 'DummyProvider'
         self.preprocessor = 'dummy_preprocessor'
-        self.num_examples = 3
+        self.num_examples = 5
         self.home = api.CompilationHome(self.name)
 
         api.compile_data_set(data_provider=self.provider,
@@ -36,58 +36,22 @@ class ApiTests(TestCase):
                 name=self.name, num_examples=self.num_examples)
         )
 
-    def test_compilation_creates_correct_directory_layout(self):
-        return
-        self.assertTrue(os.path.exists(self.home.root_dir))
-        self.assertTrue(os.path.exists(self.home.train_path))
-        self.assertTrue(os.path.exists(self.home.val_path))
-        self.assertTrue(os.path.exists(self.home.test_path))
-
-    def test_compile_with_data_creates_valid_meta_data(self):
-        with open(self.home.meta_path, 'r') as f:
-            s = f.read()
-
-        info = json.loads(s)
-        self.assertEqual(info, {
-            'location': self.home.root_dir,
-            'preprocessor': 'dummy_preprocessor',
-            'provider': 'DummyProvider',
-            'number of examples': self.num_examples
-        })
-
     def test_compilation_does_generate_data(self):
-        return
         ds = api.data_set(self.name)
 
         train, val, test = ds.get_slices()
-
         m = len(train) + len(val) + len(test)
         self.assertEqual(m, self.num_examples)
 
-        X = []
-        Y = []
-        for x, y in train.get_sequences():
-            X.append(x)
-            Y.append(y)
+        res = list(train.get_sequences()) + list(val.get_sequences())\
+              + list(test.get_sequences())
 
-        for x, y in val.get_sequences():
-            X.append(x)
-            Y.append(y)
+        self.assertEqual(len(res), m)
 
-        for x, y in test.get_sequences():
-            X.append(x)
-            Y.append(y)
+        import numpy as np
+        expected = [(np.array(x) + 1, y) for x, y in DummyProvider().examples]
 
-        self.assertEqual(len(X), len(Y))
-        self.assertEqual(len(X), m)
-
-        self.assertEqual(X, [
-            [(0, 1, 2, 3), (4, 5, 6, 7)],
-            [(8, 9, 10, 11)],
-            [(12, 13, 14, 15)]
-        ])
-
-        self.assertEqual(Y, ["first", "second", "third"])
+        self.assertEqual(res, expected)
 
 
 # todo: add shape, # of train, # of val, # of test properties
