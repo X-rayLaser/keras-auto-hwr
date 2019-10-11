@@ -1,4 +1,3 @@
-from sources.base import BaseSourceWrapper
 from sources.wrappers import Normalizer
 import json
 import sys
@@ -32,7 +31,7 @@ class OffsetStep(ProcessingStep):
         for stroke in x:
             points = []
 
-            for x, y, t in stroke.points:
+            for x, y, t in stroke:
                 points.append((x - x0, y - y0, t - t0, 0))
 
             points[-1] = points[-1][:-1] + (1,)
@@ -40,7 +39,8 @@ class OffsetStep(ProcessingStep):
         return new_seq
 
     def process_x(self, x):
-        x0, y0, t0 = x.points[0]
+        first_stroke = x[0]
+        x0, y0, t0 = first_stroke[0]
         return self._pre_process(x, x0, y0, t0)
 
     def set_parameters(self, params_dict):
@@ -66,8 +66,8 @@ class NormalizationStep(ProcessingStep):
 
     def get_parameters(self):
         return {
-            'mu': self._normalizer.mu,
-            'sd': self._normalizer.sd
+            'mu': self._normalizer.mu.tolist(),
+            'sd': self._normalizer.sd.tolist()
         }
 
 

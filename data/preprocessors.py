@@ -1,4 +1,4 @@
-from data.preprocessing import ProcessingStep
+from data.preprocessing import ProcessingStep, OffsetStep, NormalizationStep
 
 
 class DummyPreprocessor:
@@ -7,7 +7,10 @@ class DummyPreprocessor:
 
 class AddOne(ProcessingStep):
     def process_x(self, x):
-        return x + 1
+        val = x[0][0][0] + 1
+        return [[[val]]]
 
 
 dummy_preprocessor = [(AddOne, {})]
+
+default = [(OffsetStep, {}), (NormalizationStep, {})]

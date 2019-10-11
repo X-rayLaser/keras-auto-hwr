@@ -63,7 +63,7 @@ def compile_data_set(data_provider, preprocessor_name, name, num_examples):
 
     preprocessor = PreProcessor(steps)
 
-    provider = provider_class()
+    provider = provider_class(num_examples)
     splitter = DataSplitter.create(provider)
     repo = DataRepo(home.root_dir)
     compiler = DataSetCompiler(preprocessor, splitter, repo)

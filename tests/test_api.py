@@ -49,7 +49,7 @@ class ApiTests(TestCase):
         self.assertEqual(len(res), m)
 
         import numpy as np
-        expected = [(np.array(x) + 1, y) for x, y in DummyProvider().examples]
+        expected = [(np.array(x) + 1, y) for x, y in DummyProvider('').examples]
 
         self.assertEqual(res, expected)
 

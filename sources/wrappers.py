@@ -214,3 +214,28 @@ class PreprocessedSource(BaseSourceWrapper):
     def get_sequences(self):
         for xs, ys in self._source.get_sequences():
             yield self._preprocessor.pre_process_example(xs, ys)
+
+
+class ConstrainedSource(BaseSourceWrapper):
+    def __init__(self, source, num_lines):
+        super().__init__(source)
+        self._num_lines = num_lines
+
+        self._use_all = (num_lines == 0)
+
+    def get_sequences(self):
+        for j, (seq_in, seq_out) in enumerate(self._source.get_sequences()):
+            print(j, seq_out)
+            if j % 500 == 0:
+                print('Fetched {} examples'.format(j))
+
+            if j >= self._num_lines and not self._use_all:
+                break
+            yield seq_in, seq_out
+
+
+class PlainListSource(BaseSourceWrapper):
+    def get_sequences(self):
+        for strokes, t in self._source.get_sequences():
+            points = [stroke.points for stroke in strokes]
+            yield points, t

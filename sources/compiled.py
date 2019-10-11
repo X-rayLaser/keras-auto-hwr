@@ -46,6 +46,7 @@ class H5pyDataSet:
             y_rows = f['Y_rows']
 
             m = len(self)
+
             string_dt = h5py.special_dtype(vlen=str)
             x_dset = x_rows.create_dataset(str(m), data=np.array(xs))
             y_dset = y_rows.create_dataset(str(m), shape=(1,), dtype=string_dt)

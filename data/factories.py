@@ -73,7 +73,7 @@ class BaseBuffer:
 
 class H5pyBuffer(BaseBuffer):
     def __init__(self, path):
-        self.ds = H5pyDataSet.create(path)
+        self.ds = H5pyRank3DataSet.create(path)
 
     def add_example(self, strokes, transcription_text):
         self.ds.add_example(strokes, transcription_text)
