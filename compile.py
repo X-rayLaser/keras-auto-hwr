@@ -1,5 +1,6 @@
 import api
 
+
 if __name__ == '__main__':
     import argparse
 
@@ -17,3 +18,6 @@ if __name__ == '__main__':
     api.compile_data_set(data_provider=args.data_provider,
                          preprocessor_name=args.preprocessor_name,
                          name=args.ds_name, num_examples=args.num_examples)
+
+
+# todo: IamSource should take path to iam data as argument

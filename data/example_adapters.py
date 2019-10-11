@@ -99,9 +99,7 @@ class CTCAdapter(ExampleAdapter):
             labels.append(seq)
 
         sequence_length = len(labels[0])
-        alphabet_size = len(self.character_table)
-        labels = to_categorical(labels, num_classes=alphabet_size)
-        labels = labels.reshape(-1, sequence_length, alphabet_size)
+        labels = np.array(labels, dtype=np.int32).reshape(-1, sequence_length)
         return labels
 
     def _make_lengths(self, sequences):
@@ -122,4 +120,4 @@ class CTCAdapter(ExampleAdapter):
         input_lengths = self._make_lengths(seqs_in)
         label_lengths = self._make_lengths(seqs_out)
 
-        return [X, labels, input_lengths, label_lengths], seqs_out
+        return [X, labels, input_lengths, label_lengths], labels

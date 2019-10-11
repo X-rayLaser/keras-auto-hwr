@@ -173,10 +173,10 @@ class CtcModel:
             def on_epoch_end(self, epoch, logs=None):
                 inference_model.save_weights(save_path)
 
-        model.fit_generator(train_gen.get_examples(batch_size=batch_size),
+        model.fit_generator(train_gen.get_examples(),
                             steps_per_epoch=int(len(train_gen) / batch_size),
                             epochs=epochs,
-                            validation_data=val_gen.get_examples(batch_size),
+                            validation_data=val_gen.get_examples(),
                             validation_steps=validation_steps,
                             callbacks=[MyCallback(inference_model, train_gen, val_gen, char_table),
                                        TensorBoard(), SaveCallback()])
@@ -247,7 +247,7 @@ class MyCallback(Callback):
 
     def demo(self, gen):
         counter = 0
-        for inputs, y in gen.get_examples(1):
+        for inputs, y in gen.get_examples():
             counter += 1
             if counter > 5:
                 break
@@ -256,6 +256,7 @@ class MyCallback(Callback):
             labels = y[0]
             for label in labels:
                 ch = self._char_table.decode(label)
+                print('character', ch)
                 if ch == self._char_table.sentinel:
                     true += ' '
                 else:
@@ -273,7 +274,7 @@ class MyCallback(Callback):
             #input('Press anything')
 
     def on_epoch_end(self, epoch, logs=None):
-        if epoch % 10 == 0 and epoch != 0:
+        if epoch % 1 == 0:
             self.demo(self._train_gen)
             print('val')
             self.demo(self._val_gen)

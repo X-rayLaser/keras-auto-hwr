@@ -8,6 +8,9 @@ from keras import layers
 from sources.wrappers import LabelSource, Normalizer
 from models.ctc_model import WarpCtcModel, CtcModel
 from config import CTCConfig
+from api import CompilationHome, create_source
+from data.generators import MiniBatchGenerator
+from data.example_adapters import CTCAdapter
 
 
 class CtcGenerator(BaseGenerator):
@@ -119,7 +122,7 @@ def build_model(cuda, warp):
 
 if __name__ == '__main__':
     import argparse
-    import os
+    from data.data_set_home import DataSetHome
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
@@ -136,27 +139,19 @@ if __name__ == '__main__':
     print('training with following options:', args)
 
     char_table = CharacterTable()
-    num_features = CTCConfig().config_dict['num_features']
-    num_train_examples = args.max_examples
-    num_val_examples = max(1, num_train_examples // 2)
 
-    train_source = CompilationSource(
-        os.path.join(args.data_path, 'train.h5py'),
-        num_train_examples
-    )
+    location = CompilationHome('ds1').root_dir
+    ds_home = DataSetHome(location, create_source)
 
-    val_source = CompilationSource(
-        os.path.join(args.data_path, 'validation.h5py'),
-        num_val_examples
-    )
-
-    preprocessor = PreProcessor()
+    train_source, val_source, test_slice = ds_home.get_slices()
 
     train_source = LabelSource(train_source, char_table)
     val_source = LabelSource(val_source, char_table)
 
-    train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=num_features)
-    val_gen = CtcGenerator(char_table, val_source, preprocessor, channels=num_features)
+    adapter = CTCAdapter()
+
+    train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
+    val_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
 
     ctc_model = build_model(args.cuda, args.warp)
     ctc_model.fit_generator(train_gen, val_gen, args.lrate, args.epochs, char_table)

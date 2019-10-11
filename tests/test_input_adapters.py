@@ -34,9 +34,8 @@ class CTCAdapterTests(TestCase):
 
         max_y_len = max(y_len1, y_len2)
 
-        self.expected_labels = to_categorical(
-            expected_labels, len(char_table)
-        ).reshape(max_y_len, max_y_len, len(char_table))
+        self.expected_labels = np.array(expected_labels).reshape(max_y_len,
+                                                                 max_y_len)
 
         self.expected_input_lengths = np.array([[x_len1], [x_len2]])
         self.expected_label_lengths = np.array([[y_len1], [y_len2]])
@@ -134,6 +133,25 @@ class CTCAdapterTests(TestCase):
         self.assertIsInstance(label_lengths, np.ndarray)
         self.assertEqual(label_lengths.tolist(),
                          self.expected_label_lengths.tolist())
+
+    def test_adapt_batch_of_size_one_adds_no_padding(self):
+        adapter = CTCAdapter()
+
+        seqs_in = [
+            [[0, 1], [1, 2]]
+        ]
+
+        seqs_out = ['bc']
+
+        res_inp, _ = adapter.adapt_batch(seqs_in, seqs_out)
+        x = res_inp[0]
+        self.assertEqual(x.tolist(), seqs_in)
+
+        labels = res_inp[1]
+        self.assertEqual(x.tolist(), seqs_in)
+
+        char_table = CharacterTable()
+        self.assertEqual(labels.tolist(), [[char_table.encode('b'), char_table.encode('c')]])
 
 
 # todo: finish test that tests adapter when input is shorter than 2 * input_length + 1
