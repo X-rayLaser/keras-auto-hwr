@@ -12,8 +12,6 @@ class CTCAdapterTests(TestCase):
             [[2, 4]]
         ]
 
-        self.seqs_out = ['A', 'bc']
-
         self.expected_X = np.array([
             self.seqs_in[0],
             self.seqs_in[1] + [[0, 0]]
@@ -22,9 +20,11 @@ class CTCAdapterTests(TestCase):
         char_table = CharacterTable()
 
         expected_labels = [
-            [char_table.encode('A'), char_table.encode(char_table.sentinel)],
-            [char_table.encode('b'), char_table.encode('c')]
+            [56, char_table.encode(char_table.sentinel)],
+            [82, 71]
         ]
+
+        self.seqs_out = expected_labels
 
         x_len1 = len(self.seqs_in[0])
         x_len2 = len(self.seqs_in[1])
@@ -141,7 +141,7 @@ class CTCAdapterTests(TestCase):
             [[0, 1], [1, 2]]
         ]
 
-        seqs_out = ['bc']
+        seqs_out = [[32, 51]]
 
         res_inp, _ = adapter.adapt_batch(seqs_in, seqs_out)
         x = res_inp[0]
@@ -150,8 +150,7 @@ class CTCAdapterTests(TestCase):
         labels = res_inp[1]
         self.assertEqual(x.tolist(), seqs_in)
 
-        char_table = CharacterTable()
-        self.assertEqual(labels.tolist(), [[char_table.encode('b'), char_table.encode('c')]])
+        self.assertEqual(labels.tolist(), seqs_out)
 
 
 # todo: finish test that tests adapter when input is shorter than 2 * input_length + 1

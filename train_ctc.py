@@ -1,67 +1,13 @@
-from data.generators import BaseGenerator
 from sources.preloaded import PreLoadedSource
 from data.char_table import CharacterTable
-from data.preprocessing import PreProcessor
-import numpy as np
-from sources.compiled import CompilationSource
 from keras import layers
-from sources.wrappers import LabelSource, Normalizer
 from models.ctc_model import WarpCtcModel, CtcModel
-from config import CTCConfig
 from api import CompilationHome, create_source
 from data.generators import MiniBatchGenerator
 from data.example_adapters import CTCAdapter
-
-
-class CtcGenerator(BaseGenerator):
-    def __init__(self, mapping_table, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._mapping = mapping_table
-
-    def pad_seqsin(self, seqs_in):
-
-        max_len = max(len(seq) for seq in seqs_in)
-
-        res = []
-        for seq in seqs_in:
-            a = list(seq)
-            while len(a) < max_len:
-                a.append([0] * self._channels)
-            res.append(a)
-
-        return res
-
-    def prepare_batch(self, seqs_in, seqs_out):
-        m = len(seqs_out)
-
-        labels = list(seqs_out)
-
-        if m > 1:
-            max_len = max(len(row) for row in seqs_out)
-
-            for i in range(len(labels)):
-                while len(labels[i]) < max_len:
-                    labels[i].append(self._mapping.encode(self._mapping.sentinel))
-
-            seqs_in_pad = self.pad_seqsin(seqs_in)
-        else:
-            seqs_in_pad = seqs_in
-
-        n = len(seqs_in_pad[0])
-        X = np.array(seqs_in_pad)
-
-        X = X.reshape((m, n, self._channels))
-
-        labels = np.array(labels, dtype=np.int32)
-
-        label_length = np.zeros([m, 1], dtype=np.int32)
-        input_length = np.zeros([m, 1], dtype=np.int32)
-
-        for i in range(len(labels)):
-            label_length[i, 0] = len(labels[i])
-            input_length[i, 0] = len(seqs_in_pad[i])
-
-        return [X, labels, input_length, label_length], labels
+from config import CTCConfig
+from keras.utils import to_categorical
+from data.data_set_home import DataSetHome
 
 
 def dummy_source():
@@ -71,7 +17,6 @@ def dummy_source():
     char_table = CharacterTable()
 
     codes = [char_table.encode(ch) for ch in sin]
-    from keras.utils import to_categorical
 
     x = to_categorical(codes, num_classes=len(char_table))
 
@@ -93,8 +38,6 @@ def normalized_source(source, normalizer):
 
 
 def build_model(cuda, warp):
-    from config import CTCConfig
-
     ctc_config = CTCConfig()
     rnn_layer = ctc_config.config_dict['recurrent_layer']
     num_cells = ctc_config.config_dict['num_cells']
@@ -122,7 +65,6 @@ def build_model(cuda, warp):
 
 if __name__ == '__main__':
     import argparse
-    from data.data_set_home import DataSetHome
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./compiled')
@@ -145,17 +87,15 @@ if __name__ == '__main__':
 
     train_source, val_source, test_slice = ds_home.get_slices()
 
-    train_source = LabelSource(train_source, char_table)
-    val_source = LabelSource(val_source, char_table)
-
     adapter = CTCAdapter()
 
     train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
-    val_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
+    val_gen = MiniBatchGenerator(val_source, adapter, batch_size=1)
 
     ctc_model = build_model(args.cuda, args.warp)
     ctc_model.fit_generator(train_gen, val_gen, args.lrate, args.epochs, char_table)
 
 
+# todo: reuse code for predictor, output decoder etc
 # todo: advanced preprocessing/normalizing stage
 # todo: error correction by intepolating missing values and truncating too large point sequences

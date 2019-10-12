@@ -5,6 +5,7 @@ import numpy as np
 from keras import backend as K
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.callbacks import Callback
+import os
 
 
 class BaseCtcModel:
@@ -131,7 +132,6 @@ class CtcModel:
 
         self.save_path = save_path
 
-        import os
         self.inference_model = Model(inputs=self.graph_input, output=y_pred)
 
         if os.path.isfile(save_path):
@@ -191,22 +191,6 @@ def seqlen(seq, char_table):
     return len(s)
 
 
-def remove_repeates(codes):
-    prev = -1
-    res = []
-
-    for code in codes:
-        if code != prev:
-            res.append(code)
-            prev = code
-
-    return res
-
-
-def remove_blanks(codes, char_table):
-    return [code for code in codes if code != len(char_table)]
-
-
 def predict(inputs, inference_model, char_table):
     x = inputs[0]
     y_hat = inference_model.predict(x)[0]
@@ -216,25 +200,8 @@ def predict(inputs, inference_model, char_table):
         index = pmf.argmax()
         codes.append(index)
 
-    s = ''
-    for code in codes:
-        if char_table.is_unknown(code):
-            ch = '*'
-        else:
-            ch = char_table.decode(code)
-        s += ch
-
-    codes = remove_repeates(codes)
-    codes = remove_blanks(codes, char_table)
-
-    s = ''
-    for code in codes:
-        if char_table.decode(code) == char_table.sentinel:
-            break
-
-        s += char_table.decode(code)
-
-    return s
+    decoder = CTCOutputDecoder(char_table)
+    return decoder.decode(codes)
 
 
 class MyCallback(Callback):
@@ -256,7 +223,6 @@ class MyCallback(Callback):
             labels = y[0]
             for label in labels:
                 ch = self._char_table.decode(label)
-                print('character', ch)
                 if ch == self._char_table.sentinel:
                     true += ' '
                 else:
@@ -266,15 +232,32 @@ class MyCallback(Callback):
 
             print(true, '->', pred)
 
-            points_vector = inputs[0]
-
-            #from util import points_to_image
-            #points_to_image(points_vector[0]).show()
-
-            #input('Press anything')
-
     def on_epoch_end(self, epoch, logs=None):
         if epoch % 1 == 0:
             self.demo(self._train_gen)
             print('val')
             self.demo(self._val_gen)
+
+
+class CTCOutputDecoder:
+    def __init__(self, char_table):
+        self._char_table = char_table
+
+    def remove_repeated(self, labels):
+        prev = -1
+        res = []
+        for label in labels:
+            if label != prev:
+                res.append(label)
+                prev = label
+        return res
+
+    def remove_blanks(self, labels):
+        return [label for label in labels if label != len(self._char_table)]
+
+    def decode(self, labels):
+        labels = self.remove_repeated(labels)
+        labels = self.remove_blanks(labels)
+
+        characters = [self._char_table.decode(label) for label in labels]
+        return ''.join(characters)

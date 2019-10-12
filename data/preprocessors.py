@@ -1,4 +1,5 @@
-from data.preprocessing import ProcessingStep, OffsetStep, NormalizationStep
+from data.preprocessing import ProcessingStep, OffsetStep, NormalizationStep,\
+    LabelEncodingStep
 
 
 class DummyPreprocessor:
@@ -13,4 +14,4 @@ class AddOne(ProcessingStep):
 
 dummy_preprocessor = [(AddOne, {})]
 
-default = [(OffsetStep, {}), (NormalizationStep, {})]
+default = [(OffsetStep, {}), (NormalizationStep, {}), (LabelEncodingStep, {})]

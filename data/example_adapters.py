@@ -85,21 +85,16 @@ class CTCAdapter(ExampleAdapter):
 
         padded_seqs = []
         for seq in seqs_out:
-            s = str(seq)
+            s = list(seq)
             while len(s) < max_length:
-                s += self.character_table.sentinel
+                s += self.character_table.encode(self.character_table.sentinel)
             padded_seqs.append(s)
 
         return padded_seqs
 
     def _make_labels(self, seqs_out):
-        labels = []
-        for s in seqs_out:
-            seq = [self.character_table.encode(ch) for ch in s]
-            labels.append(seq)
-
-        sequence_length = len(labels[0])
-        labels = np.array(labels, dtype=np.int32).reshape(-1, sequence_length)
+        sequence_length = len(seqs_out[0])
+        labels = np.array(seqs_out, dtype=np.int32).reshape(-1, sequence_length)
         return labels
 
     def _make_lengths(self, sequences):

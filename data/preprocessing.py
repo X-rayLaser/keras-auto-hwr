@@ -71,6 +71,16 @@ class NormalizationStep(ProcessingStep):
         }
 
 
+class LabelEncodingStep(ProcessingStep):
+    def process_x(self, x):
+        return x
+
+    def process_y(self, y):
+        from data.char_table import CharacterTable
+        char_table = CharacterTable()
+        return [char_table.encode(ch) for ch in y]
+
+
 class DummyStep(ProcessingStep):
     def fit(self, data):
         self.s = sum((xs for xs, ys in data))

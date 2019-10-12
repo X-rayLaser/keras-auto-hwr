@@ -47,10 +47,15 @@ class H5pyDataSet:
 
             m = len(self)
 
-            string_dt = h5py.special_dtype(vlen=str)
             x_dset = x_rows.create_dataset(str(m), data=np.array(xs))
-            y_dset = y_rows.create_dataset(str(m), shape=(1,), dtype=string_dt)
-            y_dset[0] = ys
+
+            if type(ys) == str:
+                dtype = h5py.special_dtype(vlen=str)
+                y_dset = y_rows.create_dataset(str(m), shape=(1,), dtype=dtype)
+                y_dset[0] = ys
+            else:
+                y_dset = y_rows.create_dataset(str(m), data=np.array(ys))
+
             x_dset.flush()
             y_dset.flush()
 
@@ -62,7 +67,12 @@ class H5pyDataSet:
             dict_key = str(index)
             x = x_rows[dict_key]
             y = y_rows[dict_key]
-            return x[:], y[0]
+
+            # todo: refactor this and similar one in a method above
+            if type(y[0]) is str:
+                return x[:], y[0]
+            else:
+                return x[:], y[:]
 
     def get_data(self, num_lines=None, random_order=False):
         if num_lines is None:
@@ -125,12 +135,7 @@ class CompilationSource(BaseSource):
         return len(self), None, n
 
 
-# todo: add code to compile data here
-# todo: use new preprocessor code
-# todo: method to save and retrieve information about preprocessing
 # todo: thin model classes
-# todo: reimplement generators
-# todo: write input adapters
 # todo: refactor predictors and estimators
 # todo: reimplement factory class
 # todo: replace get_sequences method with __iter__ implementation

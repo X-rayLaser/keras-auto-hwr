@@ -1,29 +1,6 @@
 from unittest import TestCase
 from data.char_table import CharacterTable
-
-
-class CTCOutputDecoder:
-    def __init__(self, char_table):
-        self._char_table = char_table
-
-    def remove_repeated(self, labels):
-        prev = -1
-        res = []
-        for label in labels:
-            if label != prev:
-                res.append(label)
-                prev = label
-        return res
-
-    def remove_blanks(self, labels):
-        return [label for label in labels if label != len(self._char_table)]
-
-    def decode(self, labels):
-        labels = self.remove_repeated(labels)
-        labels = self.remove_blanks(labels)
-
-        characters = [self._char_table.decode(label) for label in labels]
-        return ''.join(characters)
+from models.ctc_model import CTCOutputDecoder
 
 
 class CTCOutputDecoderTests(TestCase):
