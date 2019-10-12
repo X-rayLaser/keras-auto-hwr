@@ -1,6 +1,5 @@
 import numpy as np
 from keras.utils import to_categorical
-
 from data.char_table import CharacterTable
 
 
@@ -87,7 +86,10 @@ class CTCAdapter(ExampleAdapter):
         for seq in seqs_out:
             s = list(seq)
             while len(s) < max_length:
-                s += self.character_table.encode(self.character_table.sentinel)
+                sentinel = self.character_table.encode(
+                    self.character_table.sentinel
+                )
+                s = s + [sentinel]
             padded_seqs.append(s)
 
         return padded_seqs
@@ -116,3 +118,25 @@ class CTCAdapter(ExampleAdapter):
         label_lengths = self._make_lengths(seqs_out)
 
         return [X, labels, input_lengths, label_lengths], labels
+
+
+class Seq2seqAdapter(CTCAdapter):
+    def adapt_batch(self, seqs_in, seqs_out):
+        new_seqs_in = self._pad_input_sequences(seqs_in)
+        new_seqs_out = self._pad_output_sequences(seqs_out)
+        char_table = self.character_table
+
+        start = char_table.encode(char_table.start)
+        sentinel = char_table.encode(char_table.sentinel)
+
+        decoder_x = [[start] + s for s in new_seqs_out]
+
+        num_classes = len(char_table)
+
+        decoder_x = to_categorical(decoder_x, num_classes=num_classes)
+
+        targets = [s + [sentinel] for s in new_seqs_out]
+
+        targets = to_categorical(targets, num_classes=num_classes)
+
+        return [np.array(new_seqs_in), decoder_x], np.array(targets)

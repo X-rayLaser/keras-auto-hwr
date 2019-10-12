@@ -69,3 +69,6 @@ class CharacterTable:
 
     def __len__(self):
         return len(self._map_to_index)
+
+
+# todo: assign a distinct code to 'start of sequence' character
