@@ -1,26 +1,27 @@
 from data.char_table import CharacterTable
 from sources.compiled import CompilationSource
 from models.seq2seq import SequenceToSequenceTrainer
-from data.generators import DataSetGenerator
 import os
-from data.preprocessing import PreProcessor
+from data.generators import MiniBatchGenerator
+from data.data_set_home import DataSetHome
+from api import CompilationHome, create_source
+from data.example_adapters import Seq2seqAdapter
 
 
 def train(data_path, max_examples, lrate, epochs):
     char_table = CharacterTable()
 
-    train_path = os.path.join(data_path, 'train.h5py')
-    val_path = os.path.join(data_path, 'validation.h5py')
-
-    train_source = CompilationSource(train_path, max_examples)
-
-    val_source = CompilationSource(val_path, max(1, max_examples // 2))
-
     trainer = SequenceToSequenceTrainer(char_table, input_channels=4)
 
-    preprocessor = PreProcessor()
-    train_gen = DataSetGenerator(train_source, char_table, preprocessor, channels=4)
-    val_gen = DataSetGenerator(val_source, char_table, preprocessor, channels=4)
+    location = CompilationHome('ds1').root_dir
+    ds_home = DataSetHome(location, create_source)
+
+    train_source, val_source, test_slice = ds_home.get_slices()
+
+    adapter = Seq2seqAdapter()
+
+    train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
+    val_gen = MiniBatchGenerator(val_source, adapter, batch_size=1)
 
     batch_size = 1
     validation_steps = len(val_source)
@@ -28,9 +29,9 @@ def train(data_path, max_examples, lrate, epochs):
         lrate,
         train_gen,
         val_gen,
-        train_gen.get_examples(batch_size=batch_size),
+        train_gen.get_examples(),
         steps_per_epoch=len(train_gen) / batch_size,
-        validation_data=val_gen.get_examples(batch_size),
+        validation_data=val_gen.get_examples(),
         validation_steps=validation_steps,
         epochs=epochs)
 

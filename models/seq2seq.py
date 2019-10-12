@@ -186,7 +186,11 @@ class Seq2SeqSearch(BaseBeamSearch):
         self._initial_state = initial_state
 
     def decode_next(self, prev_y, prev_state):
-        prob, next_state = self._decoder.predict([prev_y, prev_state])
+        from keras.utils import to_categorical
+        from data.char_table import CharacterTable
+        char_table = CharacterTable()
+        y_1hot = to_categorical(prev_y, num_classes=len(char_table)).reshape(1, 1, len(char_table))
+        prob, next_state = self._decoder.predict([y_1hot, prev_state])
 
         next_p = prob[0][-1]
         return next_p, next_state
@@ -211,9 +215,11 @@ class SequenceToSequencePredictor:
                                             self._channels)
         state = self._encoder.predict(hand_writing)
 
+        start = self._char_table.encode(self._char_table.start)
+        end_of_seq = self._char_table.encode(self._char_table.sentinel)
         beam_search = Seq2SeqSearch(initial_state=state,
-                                    char_table=self._char_table,
-                                    decoder=self._decoder)
+                                    decoder=self._decoder,
+                                    start_of_seq=start, end_of_seq=end_of_seq)
         return beam_search.generate_sequence()
 
 
@@ -238,3 +244,6 @@ class AutoEncoderPredictor:
                 break
 
         return points
+
+
+# todo: fix callback that outputs predictions

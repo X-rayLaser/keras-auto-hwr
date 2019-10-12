@@ -21,9 +21,15 @@ class PerformanceMetric:
         return errors
 
     def predict(self, input_sequence):
-        s = self._inference_model.predict(
+        # todo: refactor
+        labels = self._inference_model.predict(
             input_sequence
         )
+        from data.char_table import CharacterTable
+        char_table = CharacterTable()
+
+        s = ''.join([char_table.decode(label) for label in labels])
+
         return s.strip()
 
 
@@ -34,7 +40,7 @@ class Seq2seqMetric(PerformanceMetric):
 
         count = 0
 
-        for (hand_writings, _), ys in test_data.get_examples(batch_size=1):
+        for (hand_writings, _), ys in test_data.get_examples():
             count += 1
             if count > self._num_trials:
                 return errors_total / characters_total
