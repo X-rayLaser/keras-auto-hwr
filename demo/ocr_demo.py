@@ -114,6 +114,7 @@ if __name__ == "__main__":
     start_server()
 
 
+# todo: fix this demo file
 # todo: customize size of canvas
 # todo: on end-of-stroke make post request sending points rendered so far to the server and make predictions
 # todo: when making predictions, make standard preprocessing, normalization, predict transcription and return it back

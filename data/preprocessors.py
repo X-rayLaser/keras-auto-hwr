@@ -16,4 +16,4 @@ dummy_preprocessor = [(AddOne, {})]
 
 default = [(OffsetStep, {}), (NormalizationStep, {}), (LabelEncodingStep, {})]
 
-word_level = [(OffsetStep, {}), (NormalizationStep, {}), (WordEncodingStep, {})]
+word_level = [(OffsetStep, {}), (NormalizationStep, {}), (WordEncodingStep, {'num_words': 500})]

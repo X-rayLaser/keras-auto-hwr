@@ -261,3 +261,8 @@ class CTCOutputDecoder:
 
         characters = [self._mapping.decode(label) for label in labels]
         return ''.join(characters)
+
+
+# todo: refactor ctc_model
+# todo: use predictor class instead of free predict function
+# todo: create general class for callback that shows outputs afte nth epoch

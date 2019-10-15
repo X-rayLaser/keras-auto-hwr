@@ -1,6 +1,5 @@
 import os
 import random
-
 import h5py
 import numpy as np
 

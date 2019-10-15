@@ -230,3 +230,7 @@ class PreProcessor:
             step = cls()
             step.set_parameters(params)
             self._steps.append(step)
+
+
+# todo: additional step for non-english data set
+# todo: same, but for word-level classification

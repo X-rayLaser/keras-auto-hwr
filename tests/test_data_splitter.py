@@ -1,8 +1,8 @@
 from unittest import TestCase
-from data.factories import DataSplitter, BaseBuffer, BaseBufferFactory
+from data.splitter import DataSplitter, BaseBuffer, BaseBufferFactory
 from sources.base import BaseSource
-from data.factories import BadFractionsException
-from data.factories import InsufficientNumberOfExamplesException
+from data.splitter import BadFractionsException
+from data.splitter import InsufficientNumberOfExamplesException
 
 
 class SourceMock(BaseSource):
