@@ -71,4 +71,43 @@ class CharacterTable:
         return len(self._map_to_index)
 
 
+class WordEncodingTable:
+    def __init__(self, word2code):
+        self._word2code = word2code
+        self._code2word = dict((v, k) for k, v in word2code.items())
+
+    def __len__(self):
+        code_for_unknown = 1
+        num_special_codes = 2
+        return len(self._word2code) + code_for_unknown + num_special_codes
+
+    @property
+    def code_for_unknown(self):
+        return len(self._word2code)
+
+    @property
+    def start(self):
+        return self.code_for_unknown + 1
+
+    @property
+    def sentinel(self):
+        return self.code_for_unknown + 2
+
+    def encode(self, seq):
+        if seq in self._word2code:
+            return self._word2code[seq]
+        else:
+            return self.code_for_unknown
+
+    def decode(self, label):
+        if label in self._code2word:
+            return self._code2word[label]
+        elif label == self.start:
+            return '**start**'
+        elif label == self.sentinel:
+            return '**end**'
+        else:
+            return '**?**'
+
+
 # todo: assign a distinct code to 'start of sequence' character

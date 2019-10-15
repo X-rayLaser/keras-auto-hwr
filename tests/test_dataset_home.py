@@ -35,12 +35,17 @@ class DataSetHomeLoadingTests(TestCase):
         examples_total = len(self.train_examples)\
                          + len(self.validation_examples)\
                          + len(self.test_examples)
+        encoding_step = preprocessing.LabelEncodingStep()
         return {
             'location_dir': self.home_dir,
             'providers': ['DummyProvider'],
             'preprocessor_steps': [
                 {'class_name': 'DummyStep', 'params': {'sum': 1}},
                 {'class_name': 'DummyStep', 'params': {'sum': 12}},
+                {
+                    'class_name': 'LabelEncodingStep',
+                    'params': encoding_step.get_parameters()
+                },
             ],
             'number of examples': examples_total,
             'slices': {
@@ -95,7 +100,7 @@ class DataSetHomeLoadingTests(TestCase):
         preprocessor = self.home.get_preprocessor()
 
         self.assertIsInstance(preprocessor, PreProcessor)
-        self.assertEqual(len(preprocessor.steps), 2)
+        self.assertEqual(len(preprocessor.steps), 3)
 
         self.assertEqual(preprocessor.steps[0].get_parameters(), {
             'sum': 1
@@ -104,6 +109,17 @@ class DataSetHomeLoadingTests(TestCase):
         self.assertEqual(preprocessor.steps[1].get_parameters(), {
             'sum': 12
         })
+
+        encoding_step = preprocessing.LabelEncodingStep()
+
+        self.assertEqual(preprocessor.steps[2].get_parameters(),
+                         encoding_step.get_parameters())
+
+    def test_get_encoding_table(self):
+        encoding_table = self.home.get_encoding_table()
+        ch = 'S'
+        self.assertGreaterEqual(len(encoding_table), 26)
+        self.assertEqual(encoding_table.decode(encoding_table.encode(ch)), ch)
 
     def test_get_slices(self):
         slices = self.home.get_slices()
@@ -120,11 +136,12 @@ class DataSetHomeLoadingTests(TestCase):
 
         step1 = preprocessing.DummyStep()
         step2 = preprocessing.DummyStep()
+        step3 = preprocessing.LabelEncodingStep()
 
         step1.set_parameters({'sum': 1})
         step2.set_parameters({'sum': 12})
 
-        preprocessor = PreProcessor([step1, step2])
+        preprocessor = PreProcessor([step1, step2, step3])
 
         data_slices = [FileSourceMock(self.train_path),
                        FileSourceMock(self.validation_path),

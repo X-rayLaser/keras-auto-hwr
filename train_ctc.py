@@ -39,7 +39,7 @@ def normalized_source(source, normalizer):
     return PreLoadedSource(processed, seqs_out)
 
 
-def build_model(cuda, warp):
+def build_model(cuda, warp, encoding_table):
     ctc_config = CTCConfig()
     rnn_layer = ctc_config.config_dict['recurrent_layer']
     num_cells = ctc_config.config_dict['num_cells']
@@ -59,8 +59,8 @@ def build_model(cuda, warp):
     if warp:
         ctc_model = WarpCtcModel(RNN_LAYER, num_features, num_cells=num_cells)
     else:
-        ctc_model = CtcModel(RNN_LAYER,
-                             num_features, num_cells=num_cells, save_path=weights_location)
+        ctc_model = CtcModel(RNN_LAYER, num_features, encoding_table,
+                             num_cells=num_cells, save_path=weights_location)
 
     return ctc_model
 
@@ -86,21 +86,21 @@ if __name__ == '__main__':
 
     print('training with following options:', args)
 
-    char_table = CharacterTable()
-
     location = CompilationHome('ds1').root_dir
     ds_home = DataSetHome(location, create_source)
 
     train_source, val_source, test_slice = ds_home.get_slices()
 
-    sentinel = char_table.encode(char_table.sentinel)
+    encoding_table = ds_home.get_encoding_table()
+    sentinel = encoding_table.sentinel
     adapter = CTCAdapter(y_padding=sentinel)
 
     train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
     val_gen = MiniBatchGenerator(val_source, adapter, batch_size=1)
 
-    ctc_model = build_model(args.cuda, args.warp)
-    ctc_model.fit_generator(train_gen, val_gen, args.lrate, args.epochs, char_table)
+    ctc_model = build_model(args.cuda, args.warp, encoding_table)
+    ctc_model.fit_generator(train_gen, val_gen, args.lrate,
+                            args.epochs)
 
 
 # todo: reuse code for predictor, output decoder etc

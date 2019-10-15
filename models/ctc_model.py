@@ -108,13 +108,12 @@ class WarpCtcModel:
 
 
 class CtcModel:
-    def __init__(self, recurrent_layer, embedding_size, num_cells=100, save_path='./trained.h5'):
+    def __init__(self, recurrent_layer, embedding_size, encoding_table, num_cells=100, save_path='./trained.h5'):
         inp = Input(shape=(None, embedding_size))
         rnn_params = dict(units=num_cells, input_shape=(None, embedding_size),
                           return_sequences=True)
 
-        char_table = CharacterTable()
-        num_labels = len(char_table) + 1
+        num_labels = len(encoding_table) + 1
 
         if recurrent_layer.__name__ == 'LSTM':
             rnn_params['recurrent_activation'] = 'sigmoid'
@@ -129,6 +128,7 @@ class CtcModel:
         self.graph_input = inp
         self.graph = y_pred
         self.num_labels = num_labels
+        self.encoding_table = encoding_table
 
         self.save_path = save_path
 
@@ -160,7 +160,7 @@ class CtcModel:
         model.summary()
         return model
 
-    def fit_generator(self, train_gen, val_gen, lrate, epochs, char_table, batch_size=1):
+    def fit_generator(self, train_gen, val_gen, lrate, epochs, batch_size=1):
         model = self.compile_model(lrate)
         validation_steps = max(1, int(len(val_gen) / batch_size))
         print('validation_steps', validation_steps)
@@ -177,7 +177,8 @@ class CtcModel:
                             epochs=epochs,
                             validation_data=val_gen.get_examples(),
                             validation_steps=validation_steps,
-                            callbacks=[MyCallback(inference_model, train_gen, val_gen, char_table),
+                            callbacks=[MyCallback(inference_model, train_gen,
+                                                  val_gen, self.encoding_table),
                                        TensorBoard(), SaveCallback()])
 
 

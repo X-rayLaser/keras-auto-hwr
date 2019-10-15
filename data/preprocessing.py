@@ -3,6 +3,8 @@ import json
 import sys
 from nltk.tokenize import word_tokenize
 from collections import Counter
+import itertools
+from data.encodings import WordEncodingTable
 
 
 class ProcessingStep:
@@ -77,14 +79,29 @@ class LabelEncodingStep(ProcessingStep):
     def process_x(self, x):
         return x
 
+    def build_dict(self):
+        char2code = {}
+
+        first_char = 32
+        last_char = 127
+        for code in range(first_char, last_char + 1):
+            ch = chr(code)
+            index = code - first_char
+            char2code[ch] = index
+
+        return char2code
+
     def process_y(self, y):
-        from data.char_table import CharacterTable
-        char_table = CharacterTable()
-        return [char_table.encode(ch) for ch in y]
+        char2code = self.build_dict()
+        encoding_table = WordEncodingTable(char2code)
+        return [encoding_table.encode(ch) for ch in y]
+
+    def get_parameters(self):
+        return self.build_dict()
 
 
 class WordEncodingStep(ProcessingStep):
-    def __init__(self, num_words=2500):
+    def __init__(self, num_words=500):
         self.num_words = num_words
         self.word2code = {}
 
@@ -92,10 +109,16 @@ class WordEncodingStep(ProcessingStep):
     def unknown_code(self):
         return len(self.word2code)
 
+    def tokenize(self, text):
+        chunks = text.split(' ')
+        list_of_lists = [word_tokenize(w) + [' '] for w in chunks]
+        words_and_punctuation = list(itertools.chain(*list_of_lists))
+        return words_and_punctuation[:-1]
+
     def fit(self, data):
         counter = Counter()
         for _, transcription in data:
-            words = word_tokenize(transcription, language='english')
+            words = self.tokenize(transcription)
             counter.update(words)
 
         common = [w for w, _ in counter.most_common(self.num_words)]
@@ -107,14 +130,9 @@ class WordEncodingStep(ProcessingStep):
         return x
 
     def process_y(self, y):
-        words = word_tokenize(y, language='english')
-        codes = []
-        for word in words:
-            if word in self.word2code:
-                codes.append(self.word2code[word])
-            else:
-                codes.append(self.unknown_code)
-        return codes
+        encoding_table = WordEncodingTable(self.word2code)
+        words = self.tokenize(y)
+        return [encoding_table.encode(word) for word in words]
 
     def get_parameters(self):
         return self.word2code

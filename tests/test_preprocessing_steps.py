@@ -13,8 +13,9 @@ class WordEncodingStepTests(TestCase):
         ]
 
         step.fit(data)
+
         self.step = step
-        self.expected_keys = {'Foo', 'and', 'bar'}
+        self.expected_keys = {'Foo', ' ', 'bar'}
         self.expected_values = {0, 1, 2}
 
     def test_create_word_mapping_table_from_data(self):
@@ -30,15 +31,16 @@ class WordEncodingStepTests(TestCase):
 
     def test_process_y_after_fitting(self):
         step = self.step
-        labels = step.process_y('Foo and bar')
+        labels = step.process_y('Foo bar')
         codes = step.word2code
-        self.assertEqual(labels, [codes['Foo'], codes['and'], codes['bar']])
+        self.assertEqual(labels, [codes['Foo'], codes[' '], codes['bar']])
 
     def test_unknown_words_replaced_by_question_mark(self):
-        labels = self.step.process_y('Foo and unknown word')
+        labels = self.step.process_y('Foo unknown word')
         codes = self.step.word2code
-        self.assertEqual(labels, [codes['Foo'], codes['and'],
+        self.assertEqual(labels, [codes['Foo'], codes[' '],
                                   self.step.unknown_code,
+                                  codes[' '],
                                   self.step.unknown_code])
 
     def test_get_parameters(self):
