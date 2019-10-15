@@ -1,6 +1,6 @@
 import unittest
 import os
-from data.factories import H5pyRank3DataSet
+from data.h5containers import H5pyRank3DataSet
 
 
 class H5pyRank3DataSetTests(unittest.TestCase):

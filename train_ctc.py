@@ -8,7 +8,7 @@ from data.example_adapters import CTCAdapter
 from config import CTCConfig
 from keras.utils import to_categorical
 from data.data_set_home import DataSetHome
-from sources.compiled import H5pyDataSet
+from data.h5containers import H5pyDataSet
 from sources.wrappers import H5pySource
 
 

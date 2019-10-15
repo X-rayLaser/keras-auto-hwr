@@ -1,12 +1,10 @@
-from data.char_table import CharacterTable
-from sources.compiled import CompilationSource
+from data.encodings import CharacterTable
 from models.seq2seq import SequenceToSequenceTrainer
-import os
 from data.generators import MiniBatchGenerator
 from data.data_set_home import DataSetHome
 from api import CompilationHome
 from data.example_adapters import Seq2seqAdapter
-from sources.compiled import H5pyDataSet
+from data.h5containers import H5pyDataSet
 from sources.wrappers import H5pySource
 
 

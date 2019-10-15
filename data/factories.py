@@ -1,60 +1,14 @@
 import os
 from urllib.parse import quote
 
-import numpy as np
-
 from data import PreProcessor, DataSetGenerator, AttentionModelDataGenerator
 from models.attention import Seq2SeqWithAttention
 from sources.preloaded import PreLoadedSource
 from util import points_to_image
 from . import preprocessing
 from config import Config
-from sources.compiled import H5pyDataSet
-import h5py
+from data.h5containers import H5pyRank3DataSet
 from sources.wrappers import H5pySource
-
-
-class H5pyRank3DataSet(H5pyDataSet):
-    @staticmethod
-    def create(path):
-        super(H5pyRank3DataSet, H5pyRank3DataSet).create(path)
-        with h5py.File(path, 'a') as f:
-            f.create_group('stroke_lengths')
-
-        return H5pyRank3DataSet(path)
-
-    def add_example(self, strokes, transcription_text):
-        m = len(self)
-
-        flatten = []
-        stroke_lens = []
-        for stroke in strokes:
-            flatten.extend(stroke)
-            stroke_lens.append(len(stroke))
-
-        super().add_example(flatten, transcription_text)
-
-        with h5py.File(self._path, 'a') as f:
-            lens = f['stroke_lengths']
-            lens_dset = lens.create_dataset(str(m), data=np.array(stroke_lens))
-            lens_dset.flush()
-
-    def get_example(self, index):
-        xs, ys = super().get_example(index)
-        with h5py.File(self._path, 'r') as f:
-            lengths_group = f['stroke_lengths']
-            dict_key = str(index)
-            lengths = lengths_group[dict_key]
-
-            strokes = []
-
-            index = 0
-            for stroke_length in lengths:
-                stroke = xs[index:index + stroke_length]
-                strokes.append(stroke.tolist())
-                index += stroke_length
-
-            return strokes, ys
 
 
 class BaseBuffer:

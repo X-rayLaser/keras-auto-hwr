@@ -4,7 +4,7 @@ from data.data_set_home import DataSetHome
 from data.compiler import DataSetCompiler
 from data.preprocessing import PreProcessor
 from data.factories import DataSplitter
-from sources.compiled import H5pyDataSet
+from data.h5containers import H5pyDataSet
 from sources.wrappers import H5pySource
 
 

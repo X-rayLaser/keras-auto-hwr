@@ -1,8 +1,8 @@
-from sources import BaseSource
-import h5py
-import random
-import numpy as np
 import os
+import random
+
+import h5py
+import numpy as np
 
 
 class DataRepo:
@@ -103,40 +103,44 @@ class H5pyDataSet:
             return xs, ys
 
 
-class CompilationSource(BaseSource):
-    def __init__(self, path, num_lines, random_order=True):
-        self._path = path
-        self._num_lines = num_lines
-        self._size = None
-        self._random = random_order
-
+class H5pyRank3DataSet(H5pyDataSet):
     @staticmethod
-    def compile_data(source, destination):
-        h5py_data = H5pyDataSet.create(destination)
+    def create(path):
+        super(H5pyRank3DataSet, H5pyRank3DataSet).create(path)
+        with h5py.File(path, 'a') as f:
+            f.create_group('stroke_lengths')
 
-        for xs, ys in source.get_sequences():
-            if len(h5py_data) % 500 == 0:
-                print('Compiled {} examples'.format(len(h5py_data)))
+        return H5pyRank3DataSet(path)
 
-            h5py_data.add_example(xs, ys)
+    def add_example(self, strokes, transcription_text):
+        m = len(self)
 
-    def get_sequences(self):
-        h5py_data = H5pyDataSet(self._path)
-        return h5py_data.get_data(self._num_lines, self._random)
+        flatten = []
+        stroke_lens = []
+        for stroke in strokes:
+            flatten.extend(stroke)
+            stroke_lens.append(len(stroke))
 
-    def __len__(self):
-        h5py_data = H5pyDataSet(self._path)
-        return min(self._num_lines, len(h5py_data))
+        super().add_example(flatten, transcription_text)
 
-    @property
-    def batch_shape(self):
-        x, _ = list(self.get_sequences())[0]
-        n = len(x[0])
-        return len(self), None, n
+        with h5py.File(self._path, 'a') as f:
+            lens = f['stroke_lengths']
+            lens_dset = lens.create_dataset(str(m), data=np.array(stroke_lens))
+            lens_dset.flush()
 
+    def get_example(self, index):
+        xs, ys = super().get_example(index)
+        with h5py.File(self._path, 'r') as f:
+            lengths_group = f['stroke_lengths']
+            dict_key = str(index)
+            lengths = lengths_group[dict_key]
 
-# todo: thin model classes
-# todo: refactor predictors and estimators
-# todo: reimplement factory class
-# todo: replace get_sequences method with __iter__ implementation
-# todo: fix remaining code
+            strokes = []
+
+            index = 0
+            for stroke_length in lengths:
+                stroke = xs[index:index + stroke_length]
+                strokes.append(stroke.tolist())
+                index += stroke_length
+
+            return strokes, ys
