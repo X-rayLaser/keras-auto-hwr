@@ -1,7 +1,7 @@
 from unittest import TestCase
 import numpy as np
 from keras.utils import to_categorical
-from data.char_table import CharacterTable
+from data.encodings import CharacterTable
 from data.example_adapters import EmptyListException, BadInputShapeException, CTCAdapter, Seq2seqAdapter
 
 
@@ -28,10 +28,10 @@ class CTCAdapterTests(TestCase):
             self.seqs_in[1] + [[0, 0]]
         ])
 
-        char_table = CharacterTable()
+        self.padding_value = 138
 
         expected_labels = [
-            [56, char_table.encode(char_table.sentinel)],
+            [56, self.padding_value],
             [82, 71]
         ]
 
@@ -48,9 +48,10 @@ class CTCAdapterTests(TestCase):
 
         self.expected_input_lengths = np.array([[x_len1], [x_len2]])
         self.expected_label_lengths = np.array([[y_len1], [y_len2]])
+        self.adapter = CTCAdapter(y_padding=self.padding_value)
 
     def test_adapt_input(self):
-        adapter = CTCAdapter()
+        adapter = self.adapter
 
         xs = [[0, 1, 3], [1, 2, 4]]
         res = adapter.adapt_input(xs)
@@ -61,7 +62,7 @@ class CTCAdapterTests(TestCase):
         self.assertEqual(res.tolist(), expected_res.tolist())
 
     def test_adapt_input_with_invalid_shape(self):
-        adapter = CTCAdapter()
+        adapter = self.adapter
 
         xs = [[[0, 1, 3], [1, 2, 4]]]
 
@@ -75,7 +76,7 @@ class CTCAdapterTests(TestCase):
                           lambda: adapter.adapt_input([[]]))
 
     def test_adapt_batch_called_with_invalid_parameters(self):
-        adapter = CTCAdapter()
+        adapter = self.adapter
 
         self.assertRaises(EmptyListException,
                           lambda: adapter.adapt_batch([], ''))
@@ -93,7 +94,7 @@ class CTCAdapterTests(TestCase):
                           lambda: adapter.adapt_batch([[[3, 4], []]], ''))
 
     def test_adapt_batch_returns_correct_X(self):
-        adapter = CTCAdapter()
+        adapter = self.adapter
 
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
@@ -104,7 +105,7 @@ class CTCAdapterTests(TestCase):
         self.assertEqual(X.tolist(), self.expected_X.tolist())
 
     def test_adapt_batch_does_not_modify_passed_arguments(self):
-        adapter = CTCAdapter()
+        adapter = CTCAdapter(self.padding_value)
 
         before = [list(s) for s in self.seqs_in]
         adapter.adapt_batch(self.seqs_in, self.seqs_out)
@@ -113,7 +114,7 @@ class CTCAdapterTests(TestCase):
         self.assertEqual(before, after)
 
     def test_adapt_batch_returns_correct_labels(self):
-        adapter = CTCAdapter()
+        adapter = CTCAdapter(self.padding_value)
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         labels = res_inp[1]
@@ -122,7 +123,7 @@ class CTCAdapterTests(TestCase):
         self.assertEqual(labels.tolist(), self.expected_labels.tolist())
 
     def test_adapt_batch_returns_correct_input_lengths(self):
-        adapter = CTCAdapter()
+        adapter = CTCAdapter(self.padding_value)
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         input_lengths = res_inp[2]
@@ -134,7 +135,7 @@ class CTCAdapterTests(TestCase):
                          self.expected_input_lengths.tolist())
 
     def test_adapt_batch_returns_correct_label_lengths(self):
-        adapter = CTCAdapter()
+        adapter = CTCAdapter(self.padding_value)
         res_inp, _ = adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         label_lengths = res_inp[3]
@@ -144,7 +145,7 @@ class CTCAdapterTests(TestCase):
                          self.expected_label_lengths.tolist())
 
     def test_adapt_batch_of_size_one_adds_no_padding(self):
-        adapter = CTCAdapter()
+        adapter = CTCAdapter(self.padding_value)
 
         seqs_in = [
             [[0, 1], [1, 2]]
@@ -174,10 +175,15 @@ class Seq2seqAdapterTests(TestCase):
             [28]
         ]
 
-    def test_adapt_batch_returns_valid_x(self):
-        adapter = Seq2seqAdapter()
+        char_table = CharacterTable()
+        self.char_table = char_table
+        self.start = char_table.encode(char_table.start)
+        self.sentinel = char_table.encode(char_table.sentinel)
+        self.adapter = Seq2seqAdapter(self.start, self.sentinel,
+                                      num_classes=len(char_table))
 
-        inputs, targets = adapter.adapt_batch(self.seqs_in, self.seqs_out)
+    def test_adapt_batch_returns_valid_x(self):
+        inputs, targets = self.adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         encoder_x, decoder_x = inputs
         self.assertTupleEqual(encoder_x.shape, (2, 3, 2))
@@ -187,46 +193,33 @@ class Seq2seqAdapterTests(TestCase):
         ])
 
     def test_adapt_batch_returns_valid_decoder_inputs(self):
-        adapter = Seq2seqAdapter()
-
-        inputs, targets = adapter.adapt_batch(self.seqs_in, self.seqs_out)
+        inputs, targets = self.adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         encoder_x, decoder_x = inputs
 
-        char_table = CharacterTable()
-
-        start_of_seq = char_table.encode(char_table.start)
-        end_of_seq = char_table.encode(char_table.sentinel)
-
         expected_decoder_x = [
-            [start_of_seq] + self.seqs_out[0],
-            [start_of_seq, self.seqs_out[1][0], end_of_seq, end_of_seq]
+            [self.start] + self.seqs_out[0],
+            [self.start, self.seqs_out[1][0], self.sentinel, self.sentinel]
         ]
 
         expected_decoder_x = to_categorical(expected_decoder_x,
-                                            num_classes=len(char_table))
+                                            num_classes=len(self.char_table))
 
-        self.assertTupleEqual(decoder_x.shape, (2, 4, len(char_table)))
+        self.assertTupleEqual(decoder_x.shape, (2, 4, len(self.char_table)))
         self.assertEqual(decoder_x.tolist(), expected_decoder_x.tolist())
 
     def test_adapt_batch_returns_valid_targets(self):
-        adapter = Seq2seqAdapter()
-
-        inputs, targets = adapter.adapt_batch(self.seqs_in, self.seqs_out)
-
-        char_table = CharacterTable()
-
-        end_of_seq = char_table.encode(char_table.sentinel)
+        inputs, targets = self.adapter.adapt_batch(self.seqs_in, self.seqs_out)
 
         expected_targets = [
-            self.seqs_out[0] + [end_of_seq],
-            [self.seqs_out[1][0], end_of_seq, end_of_seq, end_of_seq]
+            self.seqs_out[0] + [self.sentinel],
+            [self.seqs_out[1][0], self.sentinel, self.sentinel, self.sentinel]
         ]
 
         expected_targets = to_categorical(expected_targets,
-                                          num_classes=len(char_table))
+                                          num_classes=len(self.char_table))
 
-        self.assertTupleEqual(targets.shape, (2, 4, len(char_table)))
+        self.assertTupleEqual(targets.shape, (2, 4, len(self.char_table)))
         self.assertEqual(targets.tolist(), expected_targets.tolist())
 
 

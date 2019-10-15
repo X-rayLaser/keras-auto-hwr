@@ -4,8 +4,10 @@ from models.seq2seq import SequenceToSequenceTrainer
 import os
 from data.generators import MiniBatchGenerator
 from data.data_set_home import DataSetHome
-from api import CompilationHome, create_source
+from api import CompilationHome
 from data.example_adapters import Seq2seqAdapter
+from sources.compiled import H5pyDataSet
+from sources.wrappers import H5pySource
 
 
 def train(data_path, max_examples, lrate, epochs):
@@ -18,7 +20,10 @@ def train(data_path, max_examples, lrate, epochs):
 
     train_source, val_source, test_slice = ds_home.get_slices()
 
-    adapter = Seq2seqAdapter()
+    start = char_table.encode(char_table.start)
+    sentinel = char_table.encode(char_table.sentinel)
+    num_classes = len(char_table)
+    adapter = Seq2seqAdapter(start, sentinel, num_classes)
 
     train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
     val_gen = MiniBatchGenerator(val_source, adapter, batch_size=1)
@@ -39,6 +44,10 @@ def train(data_path, max_examples, lrate, epochs):
     error_rate = estimator.estimate(train_gen)
 
     print(error_rate)
+
+
+def create_source(path):
+    return H5pySource(H5pyDataSet(path), random_order=True)
 
 
 if __name__ == '__main__':

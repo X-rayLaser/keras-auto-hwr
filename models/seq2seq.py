@@ -46,7 +46,7 @@ class BaseSeq2seq(BaseModel):
     def encoder_model(self):
         encoder_inputs = Input(shape=(None, self._input_channels))
 
-        rnn = GRU(units=self._encoding_size // 2, return_state=True)
+        rnn = CuDNNGRU(units=self._encoding_size // 2, return_state=True)
         rnn = Bidirectional(rnn)
 
         x = encoder_inputs
@@ -67,7 +67,7 @@ class BaseSeq2seq(BaseModel):
         decoder_inputs = Input(shape=(None, self._output_channels))
         initial_state = Input(shape=(self._encoding_size,))
 
-        rnn = GRU(units=decoder_states,
+        rnn = CuDNNGRU(units=decoder_states,
                         input_shape=(None, self._encoding_size),
                         return_sequences=True,
                         return_state=True,
@@ -246,4 +246,4 @@ class AutoEncoderPredictor:
         return points
 
 
-# todo: fix callback that outputs predictions
+# todo: seq2seq with LSTM/CuDNNLSTM layer

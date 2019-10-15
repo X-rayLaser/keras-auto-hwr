@@ -1,6 +1,5 @@
 import numpy as np
 from keras.utils import to_categorical
-from data.char_table import CharacterTable
 
 
 class ExampleAdapter:
@@ -23,8 +22,8 @@ class BadInputShapeException(Exception):
 
 
 class CTCAdapter(ExampleAdapter):
-    def __init__(self):
-        self.character_table = CharacterTable()
+    def __init__(self, y_padding):
+        self._y_padding = y_padding
 
     def _validate_shape(self, x, rank):
         msg = 'Input should be a list analog of rank {} numpy array.' \
@@ -86,10 +85,7 @@ class CTCAdapter(ExampleAdapter):
         for seq in seqs_out:
             s = list(seq)
             while len(s) < max_length:
-                sentinel = self.character_table.encode(
-                    self.character_table.sentinel
-                )
-                s = s + [sentinel]
+                s = s + [self._y_padding]
             padded_seqs.append(s)
 
         return padded_seqs
@@ -121,22 +117,23 @@ class CTCAdapter(ExampleAdapter):
 
 
 class Seq2seqAdapter(CTCAdapter):
+    def __init__(self, start, sentinel, num_classes):
+        super().__init__(y_padding=sentinel)
+
+        self._start = start
+        self._sentinel = sentinel
+        self._num_classes = num_classes
+
     def adapt_batch(self, seqs_in, seqs_out):
         new_seqs_in = self._pad_input_sequences(seqs_in)
         new_seqs_out = self._pad_output_sequences(seqs_out)
-        char_table = self.character_table
 
-        start = char_table.encode(char_table.start)
-        sentinel = char_table.encode(char_table.sentinel)
+        decoder_x = [[self._start] + s for s in new_seqs_out]
 
-        decoder_x = [[start] + s for s in new_seqs_out]
+        decoder_x = to_categorical(decoder_x, num_classes=self._num_classes)
 
-        num_classes = len(char_table)
+        targets = [s + [self._sentinel] for s in new_seqs_out]
 
-        decoder_x = to_categorical(decoder_x, num_classes=num_classes)
-
-        targets = [s + [sentinel] for s in new_seqs_out]
-
-        targets = to_categorical(targets, num_classes=num_classes)
+        targets = to_categorical(targets, num_classes=self._num_classes)
 
         return [np.array(new_seqs_in), decoder_x], np.array(targets)

@@ -6,6 +6,8 @@ from keras import backend as K
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.callbacks import Callback
 import os
+from data.encodings import CharacterTable
+from keras.callbacks import Callback, TensorBoard
 
 
 class BaseCtcModel:
@@ -31,7 +33,6 @@ class WarpCtcModel:
     def __init__(self, recurrent_layer, embedding_size, num_cells):
         import warpctc_tensorflow
 
-        from data.char_table import CharacterTable
         char_table = CharacterTable()
         num_labels = len(char_table) + 1
 
@@ -107,12 +108,11 @@ class WarpCtcModel:
 
 
 class CtcModel:
-    def __init__(self, recurrent_layer, embedding_size, num_cells=50, save_path='./trained.h5'):
+    def __init__(self, recurrent_layer, embedding_size, num_cells=100, save_path='./trained.h5'):
         inp = Input(shape=(None, embedding_size))
         rnn_params = dict(units=num_cells, input_shape=(None, embedding_size),
                           return_sequences=True)
 
-        from data.char_table import CharacterTable
         char_table = CharacterTable()
         num_labels = len(char_table) + 1
 
@@ -164,7 +164,6 @@ class CtcModel:
         model = self.compile_model(lrate)
         validation_steps = max(1, int(len(val_gen) / batch_size))
         print('validation_steps', validation_steps)
-        from keras.callbacks import Callback, TensorBoard
 
         save_path = self.save_path
         inference_model = self.inference_model
@@ -240,8 +239,8 @@ class MyCallback(Callback):
 
 
 class CTCOutputDecoder:
-    def __init__(self, char_table):
-        self._char_table = char_table
+    def __init__(self, mapping):
+        self._mapping = mapping
 
     def remove_repeated(self, labels):
         prev = -1
@@ -253,11 +252,11 @@ class CTCOutputDecoder:
         return res
 
     def remove_blanks(self, labels):
-        return [label for label in labels if label != len(self._char_table)]
+        return [label for label in labels if label != len(self._mapping)]
 
     def decode(self, labels):
         labels = self.remove_repeated(labels)
         labels = self.remove_blanks(labels)
 
-        characters = [self._char_table.decode(label) for label in labels]
+        characters = [self._mapping.decode(label) for label in labels]
         return ''.join(characters)

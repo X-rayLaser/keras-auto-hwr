@@ -1,13 +1,15 @@
 from sources.preloaded import PreLoadedSource
-from data.char_table import CharacterTable
+from data.encodings import CharacterTable
 from keras import layers
 from models.ctc_model import WarpCtcModel, CtcModel
-from api import CompilationHome, create_source
+from api import CompilationHome
 from data.generators import MiniBatchGenerator
 from data.example_adapters import CTCAdapter
 from config import CTCConfig
 from keras.utils import to_categorical
 from data.data_set_home import DataSetHome
+from sources.compiled import H5pyDataSet
+from sources.wrappers import H5pySource
 
 
 def dummy_source():
@@ -63,6 +65,10 @@ def build_model(cuda, warp):
     return ctc_model
 
 
+def create_source(path):
+    return H5pySource(H5pyDataSet(path), random_order=True)
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -87,7 +93,8 @@ if __name__ == '__main__':
 
     train_source, val_source, test_slice = ds_home.get_slices()
 
-    adapter = CTCAdapter()
+    sentinel = char_table.encode(char_table.sentinel)
+    adapter = CTCAdapter(y_padding=sentinel)
 
     train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
     val_gen = MiniBatchGenerator(val_source, adapter, batch_size=1)

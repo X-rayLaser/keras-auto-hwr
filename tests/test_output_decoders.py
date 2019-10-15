@@ -1,5 +1,5 @@
 from unittest import TestCase
-from data.char_table import CharacterTable
+from data.encodings import CharacterTable
 from models.ctc_model import CTCOutputDecoder
 
 

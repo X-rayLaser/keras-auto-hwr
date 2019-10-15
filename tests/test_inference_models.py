@@ -1,6 +1,6 @@
 from unittest import TestCase
 from models.base import BaseBeamSearch, BeamCandidate
-from data.char_table import CharacterTable
+from data.encodings import CharacterTable
 from models.base import PathBuilder
 from models.base import SearchPath
 from models.base import WrongNumberOfPMFsException

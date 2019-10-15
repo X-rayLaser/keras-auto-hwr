@@ -1,6 +1,8 @@
 from sources.wrappers import Normalizer
 import json
 import sys
+from nltk.tokenize import word_tokenize
+from collections import Counter
 
 
 class ProcessingStep:
@@ -79,6 +81,46 @@ class LabelEncodingStep(ProcessingStep):
         from data.char_table import CharacterTable
         char_table = CharacterTable()
         return [char_table.encode(ch) for ch in y]
+
+
+class WordEncodingStep(ProcessingStep):
+    def __init__(self, num_words=2500):
+        self.num_words = num_words
+        self.word2code = {}
+
+    @property
+    def unknown_code(self):
+        return len(self.word2code)
+
+    def fit(self, data):
+        counter = Counter()
+        for _, transcription in data:
+            words = word_tokenize(transcription, language='english')
+            counter.update(words)
+
+        common = [w for w, _ in counter.most_common(self.num_words)]
+
+        indices = range(len(common))
+        self.word2code = dict(zip(common, indices))
+
+    def process_x(self, x):
+        return x
+
+    def process_y(self, y):
+        words = word_tokenize(y, language='english')
+        codes = []
+        for word in words:
+            if word in self.word2code:
+                codes.append(self.word2code[word])
+            else:
+                codes.append(self.unknown_code)
+        return codes
+
+    def get_parameters(self):
+        return self.word2code
+
+    def set_parameters(self, params_dict):
+        self.word2code = dict(params_dict)
 
 
 class DummyStep(ProcessingStep):

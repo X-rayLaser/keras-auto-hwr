@@ -1,5 +1,6 @@
 import traceback
 import numpy as np
+from data.encodings import CharacterTable
 
 
 class PerformanceMetric:
@@ -25,7 +26,6 @@ class PerformanceMetric:
         labels = self._inference_model.predict(
             input_sequence
         )
-        from data.char_table import CharacterTable
         char_table = CharacterTable()
 
         s = ''.join([char_table.decode(label) for label in labels])

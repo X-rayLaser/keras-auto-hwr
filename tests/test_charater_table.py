@@ -1,4 +1,4 @@
-from data.char_table import CharacterTable
+from data.encodings import CharacterTable
 import unittest
 
 
