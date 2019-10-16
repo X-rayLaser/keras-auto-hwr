@@ -4,7 +4,7 @@ import sys
 from nltk.tokenize import word_tokenize
 from collections import Counter
 import itertools
-from data.encodings import WordEncodingTable
+from data.encodings import TextEncodingTable
 
 
 class ProcessingStep:
@@ -75,7 +75,7 @@ class NormalizationStep(ProcessingStep):
         }
 
 
-class LabelEncodingStep(ProcessingStep):
+class EnglishEncodingStep(ProcessingStep):
     def process_x(self, x):
         return x
 
@@ -93,17 +93,46 @@ class LabelEncodingStep(ProcessingStep):
 
     def process_y(self, y):
         char2code = self.build_dict()
-        encoding_table = WordEncodingTable(char2code)
+        encoding_table = TextEncodingTable(char2code)
         return [encoding_table.encode(ch) for ch in y]
 
     def get_parameters(self):
         return self.build_dict()
 
 
+class UnicodeEncodingStep(ProcessingStep):
+    def __init__(self):
+        self._char2code = {}
+
+    def fit(self, data):
+        chars = []
+        for _, transcription in data:
+            for ch in transcription:
+                if ch not in chars:
+                    chars.append(ch)
+
+        for i, ch in enumerate(chars):
+            self._char2code[ch] = i
+
+    def process_x(self, x):
+        return x
+
+    def process_y(self, y):
+        encoding_table = TextEncodingTable(self._char2code)
+        return [encoding_table.encode(ch) for ch in y]
+
+    def get_parameters(self):
+        return self._char2code
+
+    def set_parameters(self, params_dict):
+        self._char2code = dict(params_dict)
+
+
 class WordEncodingStep(ProcessingStep):
-    def __init__(self, num_words=500):
+    def __init__(self, num_words=500, language='english'):
         self.num_words = num_words
         self.word2code = {}
+        self._language = language
 
     @property
     def unknown_code(self):
@@ -111,7 +140,8 @@ class WordEncodingStep(ProcessingStep):
 
     def tokenize(self, text):
         chunks = text.split(' ')
-        list_of_lists = [word_tokenize(w) + [' '] for w in chunks]
+        lang = self._language
+        list_of_lists = [word_tokenize(w, language=lang) + [' '] for w in chunks]
         words_and_punctuation = list(itertools.chain(*list_of_lists))
         return words_and_punctuation[:-1]
 
@@ -130,7 +160,7 @@ class WordEncodingStep(ProcessingStep):
         return x
 
     def process_y(self, y):
-        encoding_table = WordEncodingTable(self.word2code)
+        encoding_table = TextEncodingTable(self.word2code)
         words = self.tokenize(y)
         return [encoding_table.encode(word) for word in words]
 

@@ -1,7 +1,7 @@
 import json
 import os
 from data import preprocessing, PreProcessor
-from data.encodings import WordEncodingTable
+from data.encodings import TextEncodingTable
 
 
 class DataSetHome:
@@ -20,7 +20,7 @@ class DataSetHome:
     def get_encoding_table(self):
         last_step = self.get_preprocessor().steps[-1]
         mapping_dict = last_step.get_parameters()
-        return WordEncodingTable(mapping_dict)
+        return TextEncodingTable(mapping_dict)
 
     def get_preprocessor(self):
         steps = []

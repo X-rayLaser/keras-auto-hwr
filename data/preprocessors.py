@@ -1,5 +1,5 @@
 from data.preprocessing import ProcessingStep, OffsetStep, NormalizationStep,\
-    LabelEncodingStep, WordEncodingStep
+    EnglishEncodingStep, WordEncodingStep
 
 
 class DummyPreprocessor:
@@ -14,6 +14,6 @@ class AddOne(ProcessingStep):
 
 dummy_preprocessor = [(AddOne, {})]
 
-default = [(OffsetStep, {}), (NormalizationStep, {}), (LabelEncodingStep, {})]
+default = [(OffsetStep, {}), (NormalizationStep, {}), (EnglishEncodingStep, {})]
 
-word_level = [(OffsetStep, {}), (NormalizationStep, {}), (WordEncodingStep, {'num_words': 500})]
+word_level = [(OffsetStep, {}), (NormalizationStep, {}), (WordEncodingStep, {'num_words': 1500})]

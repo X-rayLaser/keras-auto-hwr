@@ -1,6 +1,6 @@
 from data.encodings import CharacterTable
 import unittest
-from data.encodings import WordEncodingTable
+from data.encodings import TextEncodingTable
 
 
 class CharacterTableTests(unittest.TestCase):
@@ -62,7 +62,7 @@ class WordEncodingTableTests(unittest.TestCase):
             'apple': 0,
             'orange': 1
         }
-        self.encoding_table = WordEncodingTable(word2code)
+        self.encoding_table = TextEncodingTable(word2code)
 
     def test_len(self):
         self.assertEqual(len(self.encoding_table), 5)
@@ -94,3 +94,7 @@ class WordEncodingTableTests(unittest.TestCase):
     def test_decoding_end_of_sequence(self):
         enf_of_seq = self.encoding_table.sentinel
         self.assertEqual(self.encoding_table.decode(enf_of_seq), '**end**')
+
+    def test_decode_sequence(self):
+        res = self.encoding_table.decode_sequence([1, 0, 0])
+        self.assertEqual(res, ['orange', 'apple', 'apple'])

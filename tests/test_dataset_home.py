@@ -35,7 +35,7 @@ class DataSetHomeLoadingTests(TestCase):
         examples_total = len(self.train_examples)\
                          + len(self.validation_examples)\
                          + len(self.test_examples)
-        encoding_step = preprocessing.LabelEncodingStep()
+        encoding_step = preprocessing.EnglishEncodingStep()
         return {
             'location_dir': self.home_dir,
             'providers': ['DummyProvider'],
@@ -43,7 +43,7 @@ class DataSetHomeLoadingTests(TestCase):
                 {'class_name': 'DummyStep', 'params': {'sum': 1}},
                 {'class_name': 'DummyStep', 'params': {'sum': 12}},
                 {
-                    'class_name': 'LabelEncodingStep',
+                    'class_name': 'EnglishEncodingStep',
                     'params': encoding_step.get_parameters()
                 },
             ],
@@ -110,7 +110,7 @@ class DataSetHomeLoadingTests(TestCase):
             'sum': 12
         })
 
-        encoding_step = preprocessing.LabelEncodingStep()
+        encoding_step = preprocessing.EnglishEncodingStep()
 
         self.assertEqual(preprocessor.steps[2].get_parameters(),
                          encoding_step.get_parameters())
@@ -136,7 +136,7 @@ class DataSetHomeLoadingTests(TestCase):
 
         step1 = preprocessing.DummyStep()
         step2 = preprocessing.DummyStep()
-        step3 = preprocessing.LabelEncodingStep()
+        step3 = preprocessing.EnglishEncodingStep()
 
         step1.set_parameters({'sum': 1})
         step2.set_parameters({'sum': 12})
