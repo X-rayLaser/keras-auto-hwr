@@ -136,3 +136,5 @@ class CharacterEncodingStepTests(TestCase):
 
 
 # todo: remove create_source duplication
+# todo: implement or integrate beam search for CTC model decoding (use character-level model)
+# todo: implement or integrate token passing alrogithm
