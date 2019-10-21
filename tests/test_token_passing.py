@@ -58,7 +58,36 @@ class TokenPassingTests(TestCase):
         self.assertEqual([], self.decoder.decode([]))
 
 
-class State:
+class Node:
+    def evolve(self):
+        pass
+
+    def add_transition(self, transition):
+        raise NotImplementedError
+
+    def optimal_path(self):
+        raise NotImplementedError
+
+    @property
+    def node_input(self):
+        raise NotImplementedError
+
+    @property
+    def node_output(self):
+        raise NotImplementedError
+
+    @property
+    def transitions(self):
+        raise NotImplementedError
+
+    def commit(self):
+        raise NotImplementedError
+
+    def pass_token(self, token):
+        raise NotImplementedError
+
+
+class State(Node):
     infinite_score = np.inf
 
     def __init__(self, state, probabilities):
@@ -110,6 +139,9 @@ class State:
     def token(self):
         return self._score, self._history
 
+    def optimal_path(self):
+        return self.token
+
 
 class NullState(State):
     def __init__(self):
@@ -131,15 +163,57 @@ class NullState(State):
 
 class Transition:
     @staticmethod
-    def free(destination):
-        return Transition(destination, 1.0)
+    def free(source, destination):
+        return Transition(source, destination, 1.0)
 
-    def __init__(self, destination, probability):
+    def __init__(self, source, destination, probability):
+        self.source = source
         self.destination = destination
         self.probability = probability
 
     def cost(self):
         return - np.log(self.probability)
+
+    def full_cost(self):
+        return self.cost() + self.destination.local_cost()
+
+    def pass_token(self):
+        score = self.full_cost()
+        old_score, history = self.source.token
+        new_score = old_score + score
+        new_history = history + [self.destination.state]
+        self.destination.pass_token((new_score, new_history))
+
+
+class TransitionTests(TestCase):
+    def setUp(self):
+        self.p = [0.5, 0.2, 0.1]
+        self.state = State(25, self.p)
+        self.p_transit = 0.25
+        self.transition = Transition(self.state, self.state, self.p_transit)
+
+    def test_cost(self):
+        transition = Transition(self.state, self.state, 1)
+        self.assertEqual(0, transition.cost())
+
+        self.assertEqual(- np.log(self.p_transit), self.transition.cost())
+
+        transition = Transition.free(self.state, self.state)
+        self.assertEqual(0, transition.cost())
+
+    def test_full_cost(self):
+        self.assertEqual(- np.log(0.5) - np.log(self.p_transit),
+                         self.transition.full_cost())
+
+    def test_pass_token(self):
+        expected_score = self.transition.full_cost()
+        self.state.initialize_token()
+        self.transition.pass_token()
+        self.state.commit()
+
+        score, history = self.state.token
+        self.assertEqual(expected_score, score)
+        self.assertEqual([self.state.state], history)
 
 
 class StateTests(TestCase):
@@ -160,22 +234,11 @@ class StateTests(TestCase):
         state = State(self.state_value, self.p)
         self.assertEqual(0, len(state.transitions))
 
-    def test_transition_cost(self):
-        state = State(self.state_value, self.p)
-        transition = Transition(state, 1)
-        self.assertEqual(0, transition.cost())
-
-        transition = Transition(state, 0.2)
-        self.assertEqual(- np.log(0.2), transition.cost())
-
-        transition = Transition.free(state)
-        self.assertEqual(0, transition.cost())
-
     def test_add_transition(self):
         state = State(self.state_value, self.p)
 
         dest = State(2, self.p)
-        transition = Transition(dest, 0.2)
+        transition = Transition(state, dest, 0.2)
         state.add_transition(transition)
         self.assertEqual(1, len(state.transitions))
 
@@ -247,91 +310,145 @@ class StateTests(TestCase):
         self.assertEqual([state], history)
 
 
-class StatesMachine:
-    def __init__(self, states, steps):
-        initial_state = NullState()
-        self._states = states + [initial_state]
+class CompositeNode(Node):
+    def evolve(self):
+        for node in self.nodes:
+            node.evolve()
 
-        for state in states:
-            transition = Transition.free(state)
+            for transition in node.transitions:
+                transition.pass_token()
+
+        for node in self.nodes:
+            node.commit()
+
+
+class Graph(Node):
+    def __init__(self, nodes):
+        initial_state = NullState()
+        self._nodes = nodes + [initial_state]
+
+        for node in nodes:
+            transition = Transition.free(initial_state, node)
             initial_state.add_transition(transition)
 
-    def connect(self, i, j):
-        transition = Transition.free(self._states[j])
-        self._states[i].add_transition(transition)
+    def transitions(self):
+        return []
 
-    def best_path(self):
-        score, history = self._optimal_path()
-        return history
+    def commit(self):
+        pass
 
-    def _optimal_path(self):
+    def add_transition(self, transition):
+        return
+        self._nodes[i].add_transition(transition)
+
+    def optimal_path(self):
         min_score = np.inf
-        min_history = self._states[0].token[1]
-        for state in self._states:
-            score, history = state.token
+        min_history = self._nodes[0].token[1]
+        for state in self._nodes:
+            score, history = state.optimal_path()
             if score < min_score:
                 min_score = score
                 min_history = history
 
         return min_score, min_history
 
-    def best_score(self):
-        score, history = self._optimal_path()
-        return score
-
     def evolve(self):
-        for state in self._states:
-            for transition in state.transitions:
-                cost = transition.cost()
-                score, history = state.token
-                destination_state = transition.destination
+        for node in self._nodes:
+            node.evolve()
 
-                new_score = score + cost + destination_state.local_cost()
-                new_history = history + [destination_state.state]
+            for transition in node.transitions:
+                transition.pass_token()
 
-                transition.destination.pass_token((new_score, new_history))
-
-        for state in self._states:
-            state.commit()
+        for node in self._nodes:
+            node.commit()
 
 
 class StateMachineTests(TestCase):
     def setUp(self):
-        self.states = [State(50, [0.5, 0.1]), State(20, [0.1, 0.2])]
+        self.state1 = 50
+        self.state2 = 20
+
+        self.p1 = [0.5, 0.1]
+        self.p2 = [0.1, 0.2]
+        self.states = [State(self.state1, self.p1), State(self.state2, self.p2)]
 
     def test_best_path_initially(self):
-        states = [State(50, [0.5, 0.1]), State(20, [0.1, 0.2])]
-        machine = StatesMachine(states, 2)
-        machine.connect(0, 1)
-        machine.connect(1, 1)
-        self.assertEqual([], machine.best_path())
+        machine = Graph(self.states)
+        self.states[0].add_transition(
+            Transition.free(self.states[0], self.states[1])
+        )
+        self.states[1].add_transition(
+            Transition.free(self.states[1], self.states[1])
+        )
+
+        score, history = machine.optimal_path()
+        self.assertEqual([], history)
 
     def test_one_state_model(self):
-        states = [State(50, [0.5, 0.1])]
-        machine = StatesMachine(states, 2)
-        machine.connect(0, 0)
+        states = [self.states[0]]
+        machine = Graph(states)
+        self.states[0].add_transition(
+            Transition.free(self.states[0], self.states[0])
+        )
 
         machine.evolve()
-        self.assertEqual(- np.log(0.5), machine.best_score())
-        self.assertEqual([50], machine.best_path())
+        machine.commit()
+
+        t1_prob = self.p1[0]
+        t2_prob = self.p1[1]
+        score, history = machine.optimal_path()
+
+        self.assertEqual(- np.log(t1_prob), score)
+        self.assertEqual([self.state1], history)
 
         machine.evolve()
-        self.assertEqual(- np.log(0.5) - np.log(0.1), machine.best_score())
-        self.assertEqual([50, 50], machine.best_path())
+        machine.commit()
+
+        score, history = machine.optimal_path()
+
+        self.assertEqual(- np.log(t1_prob) - np.log(t2_prob), score)
+        self.assertEqual([self.state1, self.state1], history)
 
     def test_multiple_states_model(self):
-        states = [State(50, [0.5, 0.1]), State(20, [0.1, 0.2])]
-        machine = StatesMachine(states, 2)
-        machine.connect(0, 1)
-        machine.connect(1, 1)
+        machine = Graph(self.states)
+        self.states[0].add_transition(
+            Transition.free(self.states[0], self.states[1])
+        )
+        self.states[1].add_transition(
+            Transition.free(self.states[1], self.states[1])
+        )
 
         machine.evolve()
-        self.assertEqual([50], machine.best_path())
-        self.assertEqual(- np.log(0.5), machine.best_score())
+        machine.commit()
+
+        score, history = machine.optimal_path()
+
+        self.assertEqual([self.state1], history)
+        self.assertEqual(- np.log(self.p1[0]), score)
 
         machine.evolve()
-        self.assertEqual([50, 20], machine.best_path())
-        self.assertEqual(- np.log(0.5) - np.log(0.2), machine.best_score())
+        machine.commit()
+
+        score, history = machine.optimal_path()
+
+        self.assertEqual([self.state1, self.state2], history)
+        self.assertEqual(- np.log(self.p1[0]) - np.log(self.p2[1]), score)
+
+    def test_word_transition(self):
+        graph_a = Graph([self.states[0]])
+        graph_b = Graph([self.states[1]])
+
+        a_to_b = Transition(graph_a, graph_b, 0.25)
+
+        graph_a.add_transition(a_to_b)
+
+        top_level = Graph([graph_a, graph_b])
+        top_level.evolve()
+        top_level.commit()
+        score, history = top_level.optimal_path()
+
+        self.assertEqual(graph_a.optimal_path()[0] + a_to_b.full_cost(), score)
+        self.assertEqual([], history)
 
 
 # todo: composite pattern: SentenceModel.passToken(), WordModel.passToken(src, dest), Node.passToken(src, dest)
