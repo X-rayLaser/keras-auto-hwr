@@ -42,6 +42,11 @@ class Token:
     def update_words(self, new_word_id):
         return Token(self.score, list(self.history), self.words + [new_word_id])
 
+    def __repr__(self):
+        return '(score: {}, history: {}, words: {})'.format(
+            self.score, self.history, self.words
+        )
+
 
 class Node:
     def __init__(self):
@@ -75,8 +80,10 @@ class State(Node):
         self.state = state
         self.p = probabilities
 
+        self._token = Token(self.infinite_score, [])
         self._score = self.infinite_score
         self._history = []
+        self._words = []
 
         self._staging = None
         self._step = 0
@@ -90,7 +97,7 @@ class State(Node):
 
     def pass_token(self, token, transit_cost=0):
         total_cost = transit_cost + self.local_cost()
-        new_token = token.updated(total_cost, self.state)
+        new_token = token.update_score(total_cost).update_history(self.state)
 
         if new_token.score < self._staging.score:
             self._staging = new_token
@@ -98,6 +105,7 @@ class State(Node):
     def commit(self):
         self._score = self._staging.score
         self._history = self._staging.history
+        self._words = self._staging.words
         self._flush_staging()
         self._step += 1
 
@@ -107,7 +115,7 @@ class State(Node):
 
     @property
     def token(self):
-        return Token(self._score, self._history)
+        return Token(self._score, self._history, self._words)
 
     def optimal_path(self):
         return self.token
@@ -134,8 +142,9 @@ class Transition:
 
 
 class Graph(Node):
-    def __init__(self, nodes):
+    def __init__(self, nodes, graph_id=0):
         super().__init__()
+        self._graph_id = graph_id
         initial_state = NullState()
         self._nodes = nodes + [initial_state]
 
@@ -156,6 +165,7 @@ class Graph(Node):
             node.commit()
 
     def pass_token(self, token, transit_cost=0):
+        token = token.update_words(self._graph_id)
         self._nodes[0].pass_token(token, transit_cost)
 
     def optimal_path(self):

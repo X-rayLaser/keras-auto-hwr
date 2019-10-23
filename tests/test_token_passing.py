@@ -119,6 +119,14 @@ class StateTests(TestCase):
         self.state_value = 25
         self.p = [0.5, 0.2, 0.1]
 
+    def test_pass_token_retains_words(self):
+        state = State(self.state_value, self.p)
+        words = [5, 10]
+        token = Token(25, [], words)
+        state.pass_token(token)
+        state.commit()
+        self.assertEqual(words, state.token.words)
+
     def test_local_cost(self):
         state = State(self.state_value, [1])
         self.assertEqual(0, state.local_cost())
@@ -220,6 +228,13 @@ class GraphTests(TestCase):
         self.p2 = [0.1, 0.2]
         self.states = [State(self.state1, self.p1), State(self.state2, self.p2)]
 
+    def test_passing_token_to_graph_adds_word_id_to_history(self):
+        graph = Graph(self.states, graph_id=7)
+        token = Token(25, [3], words=[3])
+        graph.pass_token(token)
+        graph.commit()
+        self.assertEqual([3, 7], self.states[0].token.words)
+
     def test_local_cost(self):
         graph = Graph(self.states)
         self.assertEqual(- np.log(self.p1[0]), graph.local_cost())
@@ -254,8 +269,8 @@ class GraphTests(TestCase):
         graph.commit()
         first_state = self.states[0]
 
-        self.assertEqual(Token(expected_score, expected_history),
-                         first_state.token)
+        self.assertEqual(expected_score, first_state.token.score)
+        self.assertEqual(expected_history, first_state.token.history)
 
     def test_best_path_initially(self):
         graph = Graph(self.states)
@@ -332,7 +347,9 @@ class GraphTests(TestCase):
         top_level.evolve()
         top_level.commit()
         token = top_level.optimal_path()
-        self.assertEqual(Token(- np.log(0.5) + transit_cost, [self.state1, self.state2]), token)
+
+        self.assertEqual(- np.log(0.5) + transit_cost, token.score)
+        self.assertEqual([self.state1, self.state2], token.history)
 
     def test_transitions_with_self_loops(self):
         first_state = State(20, [0.2, 0.4])
