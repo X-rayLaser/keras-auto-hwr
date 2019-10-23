@@ -1,6 +1,18 @@
 import numpy as np
 
 
+class Token:
+    def __init__(self, score, history):
+        self.score = score
+        self.history = history
+
+    def __eq__(self, other):
+        return self.score == other.score and self.history == other.history
+
+    def updated(self, cost, node_id):
+        return Token(self.score + cost, self.history + [node_id])
+
+
 class Node:
     def __init__(self):
         self._transitions = []
@@ -14,7 +26,7 @@ class Node:
     def commit(self):
         raise NotImplementedError
 
-    def pass_token(self, token):
+    def pass_token(self, token, transit_cost=0):
         raise NotImplementedError
 
     def add_transition(self, transition):
@@ -41,22 +53,21 @@ class State(Node):
         self._flush_staging()
 
     def _flush_staging(self):
-        self._staging = (self.infinite_score, [])
+        self._staging = Token(self.infinite_score, [])
 
     def initialize_token(self):
         self._score = 0
 
-    def pass_token(self, token):
-        score, history = token
-        history = history + [self.state]
-        token = (score, history)
+    def pass_token(self, token, transit_cost=0):
+        total_cost = transit_cost + self.local_cost()
+        new_token = token.updated(total_cost, self.state)
 
-        current_score, history = self._staging
-        if score < current_score:
-            self._staging = token
+        if new_token.score < self._staging.score:
+            self._staging = new_token
 
     def commit(self):
-        self._score, self._history = self._staging
+        self._score = self._staging.score
+        self._history = self._staging.history
         self._flush_staging()
         self._step += 1
 
@@ -66,7 +77,7 @@ class State(Node):
 
     @property
     def token(self):
-        return self._score, self._history
+        return Token(self._score, self._history)
 
     def optimal_path(self):
         return self.token
@@ -89,14 +100,7 @@ class Transition:
         return self.cost() + self.destination.local_cost()
 
     def pass_token(self):
-        score = self.full_cost()
-        old_score, history = self._source.token
-        print(old_score, history)
-        new_score = old_score + score
-        new_history = history
-
-        print('new token',new_score, new_history)
-        self.destination.pass_token((new_score, new_history))
+        self.destination.pass_token(self._source.token, self.cost())
 
 
 class Graph(Node):
@@ -121,19 +125,17 @@ class Graph(Node):
         for node in self._nodes:
             node.commit()
 
-    def pass_token(self, token):
-        self._nodes[0].pass_token(token)
+    def pass_token(self, token, transit_cost=0):
+        self._nodes[0].pass_token(token, transit_cost)
 
     def optimal_path(self):
-        min_score = np.inf
-        min_history = self._nodes[0].token[1]
+        best_token = Token(np.inf, self._nodes[0].token.history)
         for state in self._nodes:
-            score, history = state.optimal_path()
-            if score < min_score:
-                min_score = score
-                min_history = history
+            token = state.optimal_path()
+            if token.score < best_token.score:
+                best_token = token
 
-        return min_score, min_history
+        return best_token
 
     def evolve(self):
         for node in self._nodes:
@@ -151,7 +153,7 @@ class NullState(Node):
     def commit(self):
         self._step += 1
 
-    def pass_token(self, token):
+    def pass_token(self, token, transit_cost=0):
         pass
 
     def local_cost(self):
@@ -159,11 +161,10 @@ class NullState(Node):
 
     @property
     def token(self):
-        print('step', self._step)
         if self._step == 0:
-            return 0, []
+            return Token(0, [])
 
-        return State.infinite_score, []
+        return Token(State.infinite_score, [])
 
     def optimal_path(self):
         return self.token

@@ -1,6 +1,27 @@
 from unittest import TestCase
 import numpy as np
-from algorithms.token_passing import State, Transition, Graph
+from algorithms.token_passing import State, Transition, Graph, Token
+
+
+class TokenTests(TestCase):
+    def test_equality(self):
+        a = Token(25, [(15, 0), (30, 0)])
+        b = Token(25, [(15, 0), (30, 0)])
+
+        self.assertEqual(a, b)
+        self.assertEqual(a, a)
+
+    def test_inequality(self):
+        a = Token(25, [(15, 0), (30, 0)])
+        b = Token(14, [(15, 0)])
+        self.assertNotEqual(a, b)
+
+    def test_updated_returns_correct_token(self):
+        token = Token(25, [15, 30])
+
+        res = token.updated(5, 80)
+        expected = Token(30, [15, 30, 80])
+        self.assertEqual(expected, res)
 
 
 class TransitionTests(TestCase):
@@ -29,9 +50,8 @@ class TransitionTests(TestCase):
         self.transition.pass_token()
         self.state.commit()
 
-        score, history = self.state.token
-        self.assertEqual(expected_score, score)
-        self.assertEqual([self.state.state], history)
+        self.assertEqual(Token(expected_score, [self.state.state]),
+                         self.state.token)
 
 
 class StateTests(TestCase):
@@ -66,66 +86,69 @@ class StateTests(TestCase):
 
     def test_initial_token(self):
         state = State(self.state_value, self.p)
-        score, history = state.token
-        self.assertEqual(state.infinite_score, score)
-        self.assertEqual([], history)
+        self.assertEqual(Token(state.infinite_score, []), state.token)
 
     def test_token_after_calling_initialization_method(self):
         state = State(self.state_value, self.p)
         state.initialize_token()
-        score, history = state.token
-        self.assertEqual(0, score)
-        self.assertEqual([], history)
+        self.assertEqual(Token(0, []), state.token)
+
+    def test_pass_token_with_transit_cost(self):
+        state = State(self.state_value, self.p)
+        local_cost = state.local_cost()
+
+        token = Token(45.3, [state])
+        state.pass_token(token, transit_cost=10)
+        state.pass_token(Token(20.3, []), transit_cost=2)
+
+        state.commit()
+        self.assertEqual(Token(20.3 + local_cost + 2, [self.state_value]), state.token)
 
     def test_token_after_passing_token_and_commit(self):
         state = State(self.state_value, self.p)
+        local_cost = state.local_cost()
 
-        token = (45.3, [state])
+        token = Token(45.3, [state])
         state.pass_token(token)
-        state.pass_token((20.3, []))
+        state.pass_token(Token(20.3, []))
 
         state.commit()
-        score, history = state.token
-        self.assertEqual(20.3, score)
-        self.assertEqual([self.state_value], history)
+
+        self.assertEqual(Token(20.3 + local_cost, [self.state_value]),
+                         state.token)
 
     def test_before_commit(self):
         state = State(self.state_value, self.p)
 
-        token = (45.3, [])
+        token = Token(45.3, [])
         state.pass_token(token)
 
-        score, history = state.token
-
-        self.assertEqual(state.infinite_score, score)
-        self.assertEqual([], history)
+        self.assertEqual(Token(state.infinite_score, []), state.token)
 
     def test_pass_token_after_commit(self):
         state = State(self.state_value, self.p)
-        token = (45.3, [state])
+        token = Token(45.3, [state])
         state.pass_token(token)
         state.commit()
-        state.pass_token((80.3, []))
-        state.pass_token((50.3, []))
-        state.pass_token((90.3, []))
+
+        cost = state.local_cost()
+        state.pass_token(Token(80.3, []))
+        state.pass_token(Token(50.3, []))
+        state.pass_token(Token(90.3, []))
 
         state.commit()
 
-        score, history = state.token
-        self.assertEqual(50.3, score)
-        self.assertEqual([self.state_value], history)
+        self.assertEqual(Token(50.3 + cost, [self.state_value]), state.token)
 
     def test_commit_without_passing_token(self):
         state = State(self.state_value, self.p)
-        token = (45.3, [30])
+        token = Token(45.3, [30])
         state.pass_token(token)
         state.commit()
 
         state.commit()
 
-        score, history = state.token
-        self.assertEqual(state.infinite_score, score)
-        self.assertEqual([], history)
+        self.assertEqual(Token(state.infinite_score, []), state.token)
 
 
 class GraphTests(TestCase):
@@ -143,7 +166,7 @@ class GraphTests(TestCase):
 
     def test_token(self):
         graph = Graph(self.states)
-        self.states[1].pass_token((34, [20, 30]))
+        self.states[1].pass_token(Token(34, [20, 30]))
         self.states[1].commit()
         self.assertEqual(self.states[1].token, graph.token)
 
@@ -155,23 +178,24 @@ class GraphTests(TestCase):
         g3 = Graph([g3_state])
         top_level = Graph([g1, g2, g3])
 
-        token = (3, [23])
+        token = Token(3, [23])
+        expected_score = 3 + g3.local_cost()
         g3_state.pass_token(token)
         g3_state.commit()
 
-        score, history = top_level.token
-        self.assertEqual(3, score)
+        self.assertEqual(expected_score, top_level.token.score)
 
     def test_pass_token(self):
         graph = Graph(self.states)
-        expected_score = 34
+        score = 30
+        expected_score = score + graph.local_cost()
         expected_history = [20, 30, self.state1]
-        graph.pass_token((expected_score, expected_history[:-1]))
+        graph.pass_token(Token(score, expected_history[:-1]))
         graph.commit()
         first_state = self.states[0]
-        score, history = first_state.token
-        self.assertEqual(expected_score, score)
-        self.assertEqual(expected_history, history)
+
+        self.assertEqual(Token(expected_score, expected_history),
+                         first_state.token)
 
     def test_best_path_initially(self):
         graph = Graph(self.states)
@@ -182,8 +206,7 @@ class GraphTests(TestCase):
             Transition.free(self.states[1], self.states[1])
         )
 
-        score, history = graph.optimal_path()
-        self.assertEqual([], history)
+        self.assertEqual([], graph.optimal_path().history)
 
     def test_one_state_model(self):
         states = [self.states[0]]
@@ -197,18 +220,16 @@ class GraphTests(TestCase):
 
         t1_prob = self.p1[0]
         t2_prob = self.p1[1]
-        score, history = graph.optimal_path()
 
-        self.assertEqual(- np.log(t1_prob), score)
-        self.assertEqual([self.state1], history)
+        self.assertEqual(Token(- np.log(t1_prob), [self.state1]),
+                         graph.optimal_path())
 
         graph.evolve()
         graph.commit()
 
-        score, history = graph.optimal_path()
-
-        self.assertEqual(- np.log(t1_prob) - np.log(t2_prob), score)
-        self.assertEqual([self.state1, self.state1], history)
+        expected = Token(- np.log(t1_prob) - np.log(t2_prob),
+                         [self.state1, self.state1])
+        self.assertEqual(expected, graph.optimal_path())
 
     def test_multiple_states_model(self):
         graph = Graph(self.states)
@@ -222,18 +243,15 @@ class GraphTests(TestCase):
         graph.evolve()
         graph.commit()
 
-        score, history = graph.optimal_path()
-
-        self.assertEqual([self.state1], history)
-        self.assertEqual(- np.log(self.p1[0]), score)
+        self.assertEqual(Token(- np.log(self.p1[0]), [self.state1]),
+                         graph.optimal_path())
 
         graph.evolve()
         graph.commit()
 
-        score, history = graph.optimal_path()
-
-        self.assertEqual([self.state1, self.state2], history)
-        self.assertEqual(- np.log(self.p1[0]) - np.log(self.p2[1]), score)
+        expected = Token(- np.log(self.p1[0]) - np.log(self.p2[1]),
+                         [self.state1, self.state2])
+        self.assertEqual(expected, graph.optimal_path())
 
     def test_word_transition(self):
         graph_a = Graph([self.states[0]])
@@ -246,18 +264,15 @@ class GraphTests(TestCase):
         top_level = Graph([graph_a, graph_b])
         top_level.evolve()
         top_level.commit()
-        score, history = top_level.optimal_path()
 
-        self.assertEqual(graph_a.token[0], score)
-        self.assertEqual(graph_a.token[1], history)
+        self.assertEqual(graph_a.token, top_level.optimal_path())
 
         transit_cost = a_to_b.full_cost()
 
         top_level.evolve()
         top_level.commit()
-        score, history = top_level.optimal_path()
-        self.assertEqual([self.state1, self.state2], history)
-        self.assertEqual(- np.log(0.5) + transit_cost, score)
+        token = top_level.optimal_path()
+        self.assertEqual(Token(- np.log(0.5) + transit_cost, [self.state1, self.state2]), token)
 
     def test_transitions_with_self_loops(self):
         first_state = State(20, [0.2, 0.4])
@@ -265,14 +280,12 @@ class GraphTests(TestCase):
 
         graph.add_transition(Transition.free(first_state, first_state))
 
-        print('evolve')
         graph.evolve()
         graph.commit()
 
-        print('evolve')
         graph.evolve()
         graph.commit()
-        score, _ = graph._nodes[0].token
+        score = graph._nodes[0].token.score
 
         self.assertEqual(- np.log(0.2) - np.log(0.4), score)
 
@@ -330,18 +343,14 @@ class WordModelFactoryTests(TestCase):
 
         model.evolve()
         model.commit()
-        score, _ = model._nodes[0].token
-        self.assertEqual(- np.log(0.3), score)
-        score, _ = model._nodes[1].token
-        self.assertEqual(- np.log(0.7), score)
+        self.assertEqual(- np.log(0.3), model._nodes[0].token.score)
+        self.assertEqual(- np.log(0.7), model._nodes[1].token.score)
 
         model.evolve()
         model.commit()
-        score, _ = model._nodes[0].token
 
-        self.assertEqual(- np.log(0.3) - np.log(0.1), score)
-        score, _ = model._nodes[1].token
-        self.assertEqual(- np.log(0.7) - np.log(0.9), score)
+        self.assertEqual(- np.log(0.3) - np.log(0.1), model._nodes[0].token.score)
+        self.assertEqual(- np.log(0.7) - np.log(0.9), model._nodes[1].token.score)
 
 
 class WordDictionary:
