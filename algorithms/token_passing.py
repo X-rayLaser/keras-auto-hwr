@@ -2,25 +2,13 @@ import numpy as np
 
 
 class Node:
+    def __init__(self):
+        self._transitions = []
+
     def evolve(self):
         pass
 
-    def add_transition(self, transition):
-        raise NotImplementedError
-
     def optimal_path(self):
-        raise NotImplementedError
-
-    @property
-    def node_input(self):
-        raise NotImplementedError
-
-    @property
-    def node_output(self):
-        raise NotImplementedError
-
-    @property
-    def transitions(self):
         raise NotImplementedError
 
     def commit(self):
@@ -29,14 +17,21 @@ class Node:
     def pass_token(self, token):
         raise NotImplementedError
 
+    def add_transition(self, transition):
+        self._transitions.append(transition)
+
+    @property
+    def transitions(self):
+        return self._transitions
+
 
 class State(Node):
     infinite_score = np.inf
 
     def __init__(self, state, probabilities):
+        super().__init__()
         self.state = state
         self.p = probabilities
-        self._transitions = []
 
         self._score = self.infinite_score
         self._history = []
@@ -70,13 +65,6 @@ class State(Node):
         return - np.log(self.p[index])
 
     @property
-    def transitions(self):
-        return self._transitions
-
-    def add_transition(self, transition):
-        self._transitions.append(transition)
-
-    @property
     def token(self):
         return self._score, self._history
 
@@ -90,34 +78,36 @@ class Transition:
         return Transition(source, destination, 1.0)
 
     def __init__(self, source, destination, probability):
-        self.source = source
+        self._source = source
         self.destination = destination
-        self.probability = probability
+        self._p = probability
 
     def cost(self):
-        return - np.log(self.probability)
+        return - np.log(self._p)
 
     def full_cost(self):
         return self.cost() + self.destination.local_cost()
 
     def pass_token(self):
         score = self.full_cost()
-        old_score, history = self.source.token
+        old_score, history = self._source.token
+        print(old_score, history)
         new_score = old_score + score
         new_history = history
+
+        print('new token',new_score, new_history)
         self.destination.pass_token((new_score, new_history))
 
 
 class Graph(Node):
     def __init__(self, nodes):
+        super().__init__()
         initial_state = NullState()
         self._nodes = nodes + [initial_state]
 
         for node in nodes:
             transition = Transition.free(initial_state, node)
-            initial_state.add_transition(transition)
-
-        self._transitions = []
+            self.add_transition(transition)
 
     def local_cost(self):
         return self._nodes[0].local_cost()
@@ -127,19 +117,12 @@ class Graph(Node):
         last_node = self._nodes[-2]
         return last_node.token
 
-    @property
-    def transitions(self):
-        return self._transitions
-
     def commit(self):
         for node in self._nodes:
             node.commit()
 
     def pass_token(self, token):
         self._nodes[0].pass_token(token)
-
-    def add_transition(self, transition):
-        self._transitions.append(transition)
 
     def optimal_path(self):
         min_score = np.inf
@@ -156,23 +139,31 @@ class Graph(Node):
         for node in self._nodes:
             node.evolve()
 
-            for transition in node.transitions:
-                transition.pass_token()
+        for transition in self.transitions:
+            transition.pass_token()
 
 
-class NullState(State):
+class NullState(Node):
     def __init__(self):
-        super().__init__(0, [])
+        super().__init__()
+        self._step = 0
+
+    def commit(self):
+        self._step += 1
 
     def pass_token(self, token):
         pass
 
     def local_cost(self):
-        return self.infinite_score
+        return State.infinite_score
 
     @property
     def token(self):
+        print('step', self._step)
         if self._step == 0:
             return 0, []
 
-        return self.infinite_score, []
+        return State.infinite_score, []
+
+    def optimal_path(self):
+        return self.token
