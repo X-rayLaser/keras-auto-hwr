@@ -3,25 +3,85 @@ import numpy as np
 from algorithms.token_passing import State, Transition, Graph, Token
 
 
-class TokenTests(TestCase):
+class TokenBaseTests(TestCase):
+    def setUp(self):
+        self.score = 25
+        self.history = [15, 30]
+        self.words = [3, 4]
+
+
+class TokenTests(TokenBaseTests):
     def test_equality(self):
-        a = Token(25, [(15, 0), (30, 0)])
-        b = Token(25, [(15, 0), (30, 0)])
+        a = Token(self.score, self.history, self.words)
+        b = Token(self.score, self.history, self.words)
 
         self.assertEqual(a, b)
         self.assertEqual(a, a)
 
     def test_inequality(self):
-        a = Token(25, [(15, 0), (30, 0)])
-        b = Token(14, [(15, 0)])
-        self.assertNotEqual(a, b)
+        self.assertNotEqual(Token(self.score, self.history, self.words),
+                            Token(self.score, self.history, [3]))
+
+        self.assertNotEqual(Token(self.score, self.history, self.words),
+                            Token(self.score, [96], self.words))
+
+        self.assertNotEqual(Token(self.score, self.history, self.words),
+                            Token(self.score + 5, self.history, self.words))
 
     def test_updated_returns_correct_token(self):
-        token = Token(25, [15, 30])
+        token = Token(self.score, self.history)
 
         res = token.updated(5, 80)
-        expected = Token(30, [15, 30, 80])
+        expected = Token(30, self.history + [80])
         self.assertEqual(expected, res)
+
+    def test_update_score(self):
+        token = Token(self.score, self.history)
+        res = token.update_score(5)
+        self.assertEqual(Token(self.score + 5, self.history), res)
+        self.assertEqual(Token(self.score, self.history), token)
+
+    def test_update_history(self):
+        token = Token(self.score, self.history, self.words)
+        res = token.update_history(42)
+        self.assertEqual(Token(self.score, self.history + [42], self.words), res)
+
+    def test_update_words(self):
+        token = Token(self.score, self.history, self.words)
+        res = token.update_words(42)
+        self.assertEqual(Token(self.score, self.history, self.words + [42]), res)
+
+
+class TokenDeepCopyTests(TokenBaseTests):
+    def setUp(self):
+        super().setUp()
+
+        self.history_copy = list(self.history)
+        self.words_copy = list(self.words)
+        self.token = Token(self.score, self.history_copy, self.words_copy )
+
+    def modify_token_content(self, token):
+        token.history.append(40)
+        token.words.append(3)
+
+    def did_not_changed(self):
+        self.assertEqual(self.history, self.history_copy)
+        self.assertEqual(self.words, self.words_copy)
+
+    def test_update_score_create_deep_copy(self):
+        token = self.token.update_score(10)
+        self.modify_token_content(token)
+        self.did_not_changed()
+
+    def test_update_history_create_deep_copy(self):
+        token = self.token.update_history(10)
+        self.modify_token_content(token)
+        self.did_not_changed()
+
+    def test_update_words_create_deep_copy(self):
+        token = self.token.update_words(10)
+        self.modify_token_content(token)
+        self.did_not_changed()
 
 
 class TransitionTests(TestCase):

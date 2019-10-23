@@ -2,15 +2,45 @@ import numpy as np
 
 
 class Token:
-    def __init__(self, score, history):
+    def __init__(self, score, history, words=None):
         self.score = score
         self.history = history
 
-    def __eq__(self, other):
-        return self.score == other.score and self.history == other.history
+        if words is None:
+            self.words = []
+        else:
+            self.words = words
 
-    def updated(self, cost, node_id):
-        return Token(self.score + cost, self.history + [node_id])
+    def __eq__(self, other):
+        return (self.score == other.score and self.history == other.history
+                and self.words == other.words)
+
+    def updated(self, cost=None, node_id=None, new_word=None):
+        if cost is None:
+            score = self.score
+        else:
+            score = self.score + cost
+
+        if node_id is None:
+            history = list(self.history)
+        else:
+            history = self.history + [node_id]
+
+        if new_word is None:
+            words = list(self.words)
+        else:
+            words = self.words + [new_word]
+
+        return Token(score, history, words)
+
+    def update_score(self, cost):
+        return Token(self.score + cost, list(self.history), list(self.words))
+
+    def update_history(self, node_id):
+        return Token(self.score, self.history + [node_id], list(self.words))
+
+    def update_words(self, new_word_id):
+        return Token(self.score, list(self.history), self.words + [new_word_id])
 
 
 class Node:
