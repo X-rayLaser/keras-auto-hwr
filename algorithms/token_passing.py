@@ -111,7 +111,10 @@ class State(Node):
 
     def local_cost(self):
         index = self._step
-        return - np.log(self.p[index])
+        p = self.p[index]
+        if p == 0:
+            return self.infinite_score
+        return - np.log(p)
 
     @property
     def token(self):
@@ -142,10 +145,17 @@ class Transition:
 
 
 class Graph(Node):
-    def __init__(self, nodes, graph_id=0):
+    def __init__(self, nodes, graph_id=None):
         super().__init__()
-        self._graph_id = graph_id
+
         initial_state = NullState()
+
+        if graph_id is None:
+            graph_id = 0
+        else:
+            initial_state.add_initial_word(graph_id)
+
+        self._graph_id = graph_id
         self._nodes = nodes + [initial_state]
 
         for node in nodes:
@@ -154,6 +164,10 @@ class Graph(Node):
 
     def local_cost(self):
         return self._nodes[0].local_cost()
+
+    @property
+    def graph_id(self):
+        return self._graph_id
 
     @property
     def token(self):
@@ -189,6 +203,10 @@ class NullState(Node):
     def __init__(self):
         super().__init__()
         self._step = 0
+        self._words = []
+
+    def add_initial_word(self, word_id):
+        self._words = [word_id]
 
     def commit(self):
         self._step += 1
@@ -202,9 +220,9 @@ class NullState(Node):
     @property
     def token(self):
         if self._step == 0:
-            return Token(0, [])
+            return Token(0, [], self._words)
 
-        return Token(State.infinite_score, [])
+        return Token(State.infinite_score, [], self._words)
 
     def optimal_path(self):
         return self.token

@@ -1,6 +1,7 @@
 from unittest import TestCase
 import numpy as np
 from algorithms.token_passing import State, Transition, Graph, Token
+from data.encodings import CharacterTable
 
 
 class TokenBaseTests(TestCase):
@@ -307,7 +308,8 @@ class GraphTests(TestCase):
         self.assertEqual(expected, graph.optimal_path())
 
     def test_multiple_states_model(self):
-        graph = Graph(self.states)
+        graph_id = 7
+        graph = Graph(self.states, graph_id=graph_id)
         graph.add_transition(
             Transition.free(self.states[0], self.states[1])
         )
@@ -318,14 +320,14 @@ class GraphTests(TestCase):
         graph.evolve()
         graph.commit()
 
-        self.assertEqual(Token(- np.log(self.p1[0]), [self.state1]),
+        self.assertEqual(Token(- np.log(self.p1[0]), [self.state1], [graph_id]),
                          graph.optimal_path())
 
         graph.evolve()
         graph.commit()
 
         expected = Token(- np.log(self.p1[0]) - np.log(self.p2[1]),
-                         [self.state1, self.state2])
+                         [self.state1, self.state2], [graph_id])
         self.assertEqual(expected, graph.optimal_path())
 
     def test_word_transition(self):
@@ -371,13 +373,13 @@ class WordModelFactory:
     def __init__(self, distribution):
         self._pmfs = distribution
 
-    def create_model(self, char_codes):
+    def create_model(self, char_codes, model_id=0):
         states = []
         for code in char_codes:
             p = self._pmfs[:, code]
             states.append(State(code, p))
 
-        graph = Graph(states)
+        graph = Graph(states, model_id)
 
         for state in states:
             graph.add_transition(Transition.free(state, state))
@@ -389,14 +391,14 @@ class WordModelFactory:
 
 
 class WordModelFactoryTests(TestCase):
+    def setUp(self):
+        self.step1_pmf = [0.3, 0.7]
+        self.step2_pmf = [0.1, 0.9]
+        self.distribution = np.array([self.step1_pmf, self.step2_pmf])
+        self.factory = WordModelFactory(self.distribution)
+
     def test_transitions_are_in_place(self):
-        distribution = np.array([
-            [0.3, 0.7], [0.1, 0.9]
-        ])
-
-        factory = WordModelFactory(distribution)
-
-        model = factory.create_model([1, 0])
+        model = self.factory.create_model([1, 0])
 
         self.assertEqual(5, len(model.transitions))
 
@@ -410,30 +412,31 @@ class WordModelFactoryTests(TestCase):
         self.assertEqual(model.transitions[4].destination.state, 0)
 
     def test_correct_emission_probabilities_applied(self):
-        step1_pmf = [0.3, 0.7]
-        step2_pmf = [0.1, 0.9]
-
-        distribution = np.array([step1_pmf, step2_pmf])
-
-        factory = WordModelFactory(distribution)
-        model = factory.create_model([0, 1])
+        model = self.factory.create_model([0, 1])
 
         model.evolve()
         model.commit()
-        self.assertEqual(- np.log(0.3), model._nodes[0].token.score)
-        self.assertEqual(- np.log(0.7), model._nodes[1].token.score)
+        self.assertEqual(- np.log(self.step1_pmf[0]), model._nodes[0].token.score)
+        self.assertEqual(- np.log(self.step1_pmf[1]), model._nodes[1].token.score)
 
         model.evolve()
         model.commit()
 
-        self.assertEqual(- np.log(0.3) - np.log(0.1), model._nodes[0].token.score)
-        self.assertEqual(- np.log(0.7) - np.log(0.9), model._nodes[1].token.score)
+        self.assertEqual(- np.log(self.step1_pmf[0]) - np.log(self.step2_pmf[0]),
+                         model._nodes[0].token.score)
+        self.assertEqual(- np.log(self.step1_pmf[1]) - np.log(self.step2_pmf[1]),
+                         model._nodes[1].token.score)
+
+    def test_model_contains_correct_words_history(self):
+        model = self.factory.create_model([0, 1], model_id=45)
+        self.assertEqual(45, model.graph_id)
 
 
 class WordDictionary:
-    def __init__(self, words, text_encoder):
+    def __init__(self, words, transitions, text_encoder):
         self.words = words
         self.encoder = text_encoder
+        self.transitions = transitions
 
     def encoded(self, index):
         text = self.words[index]
@@ -446,23 +449,45 @@ class WordDictionary:
 class TokenPassing:
     def __init__(self, dictionary, distribution):
         graphs = []
+        factory = WordModelFactory(distribution)
         for i in range(len(dictionary)):
             codes = dictionary.encoded(i)
+            model = factory.create_model(codes, model_id=i)
+            graphs.append(model)
 
-            graphs.append(Graph())
+        network = Graph(graphs)
+
+        num_models = len(graphs)
+        for i in range(num_models):
+            for j in range(num_models):
+                a = dictionary.words[i]
+                b = dictionary.words[j]
+
+                p = dictionary.transitions[a, b]
+
+                transition = Transition(graphs[i], graphs[j], p)
+                network.add_transition(transition)
+
+        self._network = network
+
+        self._num_steps = len(distribution)
+
+        self._dictionary = dictionary
 
     def decode(self):
-        return []
+        for _ in range(self._num_steps):
+            self._network.evolve()
+            self._network.commit()
+
+        token = self._network.optimal_path()
+        return token.words
 
 
 class TokenPassingTests(TestCase):
     def create_distribution(self, text):
-        from data.encodings import CharacterTable
         char_table = CharacterTable()
 
         codes = [char_table.encode(ch) for ch in text]
-
-        import numpy as np
 
         Tx = len(text)
         n = len(char_table)
@@ -472,7 +497,24 @@ class TokenPassingTests(TestCase):
 
         return a
 
-    def test(self):
+    def test_with_single_word(self):
+        transitions = {
+            ("hello", "world"): 0.75,
+            ("hello", "hello"): 0.25,
+            ("world", "hello"): 0.3,
+            ("world", "world"): 0.7,
+        }
+
+        char_table = CharacterTable()
+        dictionary = WordDictionary(["hello", "world"], transitions, char_table)
+
+        distribution = self.create_distribution('hhhheeellllllo')
+
+        decoder = TokenPassing(dictionary, distribution)
+        res = decoder.decode()
+        self.assertEqual([0], res)
+
+    def test_with_multiple_words(self):
 
         transitions = {
             ("hello", "world"): 0.75,
@@ -480,7 +522,9 @@ class TokenPassingTests(TestCase):
             ("world", "hello"): 0.3,
             ("world", "world"): 0.7,
         }
-        dictionary = WordDictionary(["hello", "world"], transitions)
+
+        char_table = CharacterTable()
+        dictionary = WordDictionary(["hello", "world"], transitions, char_table)
 
         distribution = self.create_distribution('hheellloowworrlldd')
 
@@ -489,6 +533,4 @@ class TokenPassingTests(TestCase):
         self.assertEqual([0, 1], res)
 
 
-# todo: make graph return path through words instead of characters
-# todo: word model, algorithm
 # todo: few more edge cases
