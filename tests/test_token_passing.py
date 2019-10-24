@@ -1,6 +1,6 @@
 from unittest import TestCase
 import numpy as np
-from algorithms.token_passing import State, Transition, Graph, Token
+from algorithms.token_passing import State, Transition, Graph, Token, WordModelFactory, WordDictionary, TokenPassing
 from data.encodings import CharacterTable
 
 
@@ -369,27 +369,6 @@ class GraphTests(TestCase):
         self.assertEqual(- np.log(0.2) - np.log(0.4), score)
 
 
-class WordModelFactory:
-    def __init__(self, distribution):
-        self._pmfs = distribution
-
-    def create_model(self, char_codes, model_id=0):
-        states = []
-        for code in char_codes:
-            p = self._pmfs[:, code]
-            states.append(State(code, p))
-
-        graph = Graph(states, model_id)
-
-        for state in states:
-            graph.add_transition(Transition.free(state, state))
-
-        for current, previous in zip(states[1:], states):
-            graph.add_transition(Transition.free(previous, current))
-
-        return graph
-
-
 class WordModelFactoryTests(TestCase):
     def setUp(self):
         self.step1_pmf = [0.3, 0.7]
@@ -432,58 +411,20 @@ class WordModelFactoryTests(TestCase):
         self.assertEqual(45, model.graph_id)
 
 
-class WordDictionary:
-    def __init__(self, words, transitions, text_encoder):
-        self.words = words
-        self.encoder = text_encoder
-        self.transitions = transitions
-
-    def encoded(self, index):
-        text = self.words[index]
-        return [self.encoder.encode(ch) for ch in text]
-
-    def __len__(self):
-        return len(self.words)
-
-
-class TokenPassing:
-    def __init__(self, dictionary, distribution):
-        graphs = []
-        factory = WordModelFactory(distribution)
-        for i in range(len(dictionary)):
-            codes = dictionary.encoded(i)
-            model = factory.create_model(codes, model_id=i)
-            graphs.append(model)
-
-        network = Graph(graphs)
-
-        num_models = len(graphs)
-        for i in range(num_models):
-            for j in range(num_models):
-                a = dictionary.words[i]
-                b = dictionary.words[j]
-
-                p = dictionary.transitions[a, b]
-
-                transition = Transition(graphs[i], graphs[j], p)
-                network.add_transition(transition)
-
-        self._network = network
-
-        self._num_steps = len(distribution)
-
-        self._dictionary = dictionary
-
-    def decode(self):
-        for _ in range(self._num_steps):
-            self._network.evolve()
-            self._network.commit()
-
-        token = self._network.optimal_path()
-        return token.words
-
-
 class TokenPassingTests(TestCase):
+    def setUp(self):
+        transitions = {
+            ("hello", "world"): 0.75,
+            ("hello", "hello"): 0.25,
+            ("world", "hello"): 0.3,
+            ("world", "world"): 0.7,
+        }
+
+        char_table = CharacterTable()
+        self.hello_code = 0
+        self.world_code = 1
+        self.dictionary = WordDictionary(["hello", "world"], transitions, char_table)
+
     def create_distribution(self, text):
         char_table = CharacterTable()
 
@@ -497,40 +438,48 @@ class TokenPassingTests(TestCase):
 
         return a
 
-    def test_with_single_word(self):
-        transitions = {
-            ("hello", "world"): 0.75,
-            ("hello", "hello"): 0.25,
-            ("world", "hello"): 0.3,
-            ("world", "world"): 0.7,
-        }
-
-        char_table = CharacterTable()
-        dictionary = WordDictionary(["hello", "world"], transitions, char_table)
-
+    def test_with_hello(self):
         distribution = self.create_distribution('hhhheeellllllo')
 
-        decoder = TokenPassing(dictionary, distribution)
+        decoder = TokenPassing(self.dictionary, distribution)
         res = decoder.decode()
-        self.assertEqual([0], res)
+        self.assertEqual([self.hello_code], res)
 
-    def test_with_multiple_words(self):
+    def test_with_world(self):
+        distribution = self.create_distribution('wworrrlldddd')
 
-        transitions = {
-            ("hello", "world"): 0.75,
-            ("hello", "hello"): 0.25,
-            ("world", "hello"): 0.3,
-            ("world", "world"): 0.7,
-        }
+        decoder = TokenPassing(self.dictionary, distribution)
+        res = decoder.decode()
+        self.assertEqual([self.world_code], res)
 
-        char_table = CharacterTable()
-        dictionary = WordDictionary(["hello", "world"], transitions, char_table)
-
+    def test_with_hello_world(self):
         distribution = self.create_distribution('hheellloowworrlldd')
 
-        decoder = TokenPassing(dictionary, distribution)
+        decoder = TokenPassing(self.dictionary, distribution)
         res = decoder.decode()
-        self.assertEqual([0, 1], res)
+        self.assertEqual([self.hello_code, self.world_code], res)
+
+    def test_with_world_hello(self):
+        distribution = self.create_distribution('wwwoorrlddhello')
+
+        decoder = TokenPassing(self.dictionary, distribution)
+        res = decoder.decode()
+        self.assertEqual([self.world_code, self.hello_code], res)
+
+    def test_with_repeating_word(self):
+        distribution = self.create_distribution('hellohello')
+
+        decoder = TokenPassing(self.dictionary, distribution)
+        res = decoder.decode()
+        self.assertEqual([self.hello_code, self.hello_code], res)
+
+    def test_partial_match(self):
+        distribution = self.create_distribution('hheel')
+
+        decoder = TokenPassing(self.dictionary, distribution)
+        res = decoder.decode()
+        self.assertEqual([self.hello_code], res)
 
 
+# todo: word model should contain blanks
 # todo: few more edge cases

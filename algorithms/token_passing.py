@@ -226,3 +226,75 @@ class NullState(Node):
 
     def optimal_path(self):
         return self.token
+
+
+class WordModelFactory:
+    def __init__(self, distribution):
+        self._pmfs = distribution
+
+    def create_model(self, char_codes, model_id=0):
+        states = []
+        for code in char_codes:
+            p = self._pmfs[:, code]
+            states.append(State(code, p))
+
+        graph = Graph(states, model_id)
+
+        for state in states:
+            graph.add_transition(Transition.free(state, state))
+
+        for current, previous in zip(states[1:], states):
+            graph.add_transition(Transition.free(previous, current))
+
+        return graph
+
+
+class WordDictionary:
+    def __init__(self, words, transitions, text_encoder):
+        self.words = words
+        self.encoder = text_encoder
+        self.transitions = transitions
+
+    def encoded(self, index):
+        text = self.words[index]
+        return [self.encoder.encode(ch) for ch in text]
+
+    def __len__(self):
+        return len(self.words)
+
+
+class TokenPassing:
+    def __init__(self, dictionary, distribution):
+        graphs = []
+        factory = WordModelFactory(distribution)
+        for i in range(len(dictionary)):
+            codes = dictionary.encoded(i)
+            model = factory.create_model(codes, model_id=i)
+            graphs.append(model)
+
+        network = Graph(graphs)
+
+        num_models = len(graphs)
+        for i in range(num_models):
+            for j in range(num_models):
+                a = dictionary.words[i]
+                b = dictionary.words[j]
+
+                p = dictionary.transitions[a, b]
+
+                transition = Transition(graphs[i], graphs[j], p)
+                network.add_transition(transition)
+
+        self._network = network
+
+        self._num_steps = len(distribution)
+
+        self._dictionary = dictionary
+
+    def decode(self):
+        for _ in range(self._num_steps):
+            self._network.evolve()
+            self._network.commit()
+
+        token = self._network.optimal_path()
+        return token.words
