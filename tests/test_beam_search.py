@@ -1,11 +1,8 @@
 from unittest import TestCase
-from models.base import BaseBeamSearch, BeamCandidate
 from data.encodings import CharacterTable
-from models.base import PathBuilder
-from models.base import SearchPath
-from models.base import WrongNumberOfPMFsException
+from algorithms.beam_search import SearchPath, PathBuilder, WrongNumberOfPMFsException, StatesKeeper, BaseBeamSearch, \
+    BeamCandidate
 import numpy as np
-from models.base import StatesKeeper
 
 
 class DummyDecoder:

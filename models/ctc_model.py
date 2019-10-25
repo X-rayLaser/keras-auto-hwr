@@ -8,6 +8,8 @@ from keras.callbacks import Callback
 import os
 from data.encodings import CharacterTable
 from keras.callbacks import Callback, TensorBoard
+from tests.test_predictor import DebugPredictor
+from data.example_adapters import CTCAdapter
 
 
 class BaseCtcModel:
@@ -172,42 +174,55 @@ class CtcModel:
             def on_epoch_end(self, epoch, logs=None):
                 inference_model.save_weights(save_path)
 
+        class_predictor = BestPathClassPredictor(inference_model)
+
         model.fit_generator(train_gen.get_examples(),
                             steps_per_epoch=int(len(train_gen) / batch_size),
                             epochs=epochs,
                             validation_data=val_gen.get_examples(),
                             validation_steps=validation_steps,
-                            callbacks=[MyCallback(inference_model, train_gen,
+                            callbacks=[MyCallback(class_predictor, train_gen,
                                                   val_gen, self.encoding_table),
                                        TensorBoard(), SaveCallback()])
 
 
-def seqlen(seq, char_table):
-    s = char_table.sentinel
-    for ch in seq:
-        s += ch
-        s += char_table.sentinel
+class BestPathClassPredictor:
+    def __init__(self, model):
+        self._model = model
 
-    return len(s)
+    def predict(self, x):
+        y_hat = self._model.predict(x)[0]
+
+        codes = []
+        for pmf in y_hat:
+            index = pmf.argmax()
+            codes.append(index)
+
+        return codes
 
 
-def predict(inputs, inference_model, char_table):
-    x = inputs[0]
-    y_hat = inference_model.predict(x)[0]
+class TokenPassingPredictor:
+    def __init__(self, model):
+        self._model = model
 
-    codes = []
-    for pmf in y_hat:
-        index = pmf.argmax()
-        codes.append(index)
+    def predict(self, x):
+        from algorithms.token_passing import TokenPassing
+        from data.language_models import WordDictionary
+        from data.encodings import CharacterTable
 
-    decoder = CTCOutputDecoder(char_table)
-    return decoder.decode(codes)
+        pmfs = self._model.predict(x)[0]
+
+        # todo use debug dictionary
+        dictionary = WordDictionary([], {}, CharacterTable())
+        algo = TokenPassing(dictionary, pmfs)
+
+        return algo.decode()
 
 
 class MyCallback(Callback):
-    def __init__(self, inference_model, train_gen, val_gen, char_table):
+    def __init__(self, class_predictor, train_gen, val_gen, char_table):
         super().__init__()
-        self._inference_model = inference_model
+        self._class_predictor = class_predictor
         self._train_gen = train_gen
         self._val_gen = val_gen
         self._char_table = char_table
@@ -228,7 +243,11 @@ class MyCallback(Callback):
                 else:
                     true += ch
 
-            pred = predict(inputs, self._inference_model, self._char_table)
+            adapter = CTCAdapter(self._char_table.sentinel)
+            decoder = CTCOutputDecoder(self._char_table)
+
+            predictor = DebugPredictor(self._class_predictor, adapter, decoder)
+            pred = predictor.predict(inputs[0][0])
 
             print(true, '->', pred)
 

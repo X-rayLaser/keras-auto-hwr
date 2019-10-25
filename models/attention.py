@@ -8,7 +8,7 @@ from keras.optimizers import RMSprop
 import numpy as np
 from estimate import AttentionModelMetric
 from keras.callbacks import Callback, ReduceLROnPlateau
-from models.base import BaseBeamSearch
+from algorithms.beam_search import BaseBeamSearch
 from models.encoder_spec import EncoderSpec
 from keras.regularizers import l1, l2
 

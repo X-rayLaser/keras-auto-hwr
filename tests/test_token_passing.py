@@ -483,4 +483,5 @@ class TokenPassingTests(TestCase):
 
 
 # todo: word model should contain blanks
+# todo: each word may allow to start and with punctuation sign, space or blank
 # todo: few more edge cases

@@ -1,9 +1,19 @@
-from data.preprocessing import WordEncodingStep
+from nltk.tokenize import word_tokenize
+
+
+class BaseTokenizer:
+    def word_tokenize(self, text, language='english'):
+        return word_tokenize(text, language=language)
 
 
 class TransitionsBuilder:
-    def __init__(self, provider):
+    def __init__(self, provider, tokenizer=None):
         self._provider = provider
+
+        if tokenizer:
+            self._tokenizer = tokenizer
+        else:
+            self._tokenizer = BaseTokenizer()
 
     def build(self):
         words = self.extract_words()
@@ -56,8 +66,7 @@ class TransitionsBuilder:
 
     def sentences_generator(self):
         for _, ys in self._provider.get_sequences():
-            from nltk.tokenize import word_tokenize
-            yield word_tokenize(ys, language='english')
+            yield self._tokenizer.word_tokenize(ys)
 
 
 class WordDictionary:

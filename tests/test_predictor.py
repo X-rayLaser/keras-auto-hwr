@@ -1,5 +1,6 @@
 from unittest import TestCase
 import numpy as np
+from data.preprocessing import PreProcessor
 
 
 class PreProcessorMock:
@@ -100,6 +101,14 @@ class Predictor:
         adapted = self.input_adapter.adapt_input(processed)
         classes = self.model.predict(adapted)
         return self.decoder.decode(classes)
+
+
+class DebugPredictor(Predictor):
+    def __init__(self, model, input_adapter, output_decoder):
+        super().__init__(model, PreProcessor([]), input_adapter, output_decoder)
+
+    def _validate(self, strokes):
+        pass
 
 
 class UnexpectedInputException(Exception):

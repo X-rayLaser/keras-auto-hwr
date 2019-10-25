@@ -7,7 +7,7 @@ from models import BaseModel
 from estimate import Seq2seqMetric
 from keras.callbacks import Callback
 from keras.optimizers import RMSprop
-from models.base import BaseBeamSearch
+from algorithms.beam_search import BaseBeamSearch
 from util import visualize_stroke
 
 

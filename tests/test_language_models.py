@@ -81,3 +81,8 @@ class WordDictionaryTests(TestCase):
         }
 
         self.assertEqual(expected_transitions, dictionary.transitions)
+
+
+# todo: test with non english words
+# todo: save/load language model
+# todo: build from text corpora
