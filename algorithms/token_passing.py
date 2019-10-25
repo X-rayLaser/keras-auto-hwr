@@ -249,20 +249,6 @@ class WordModelFactory:
         return graph
 
 
-class WordDictionary:
-    def __init__(self, words, transitions, text_encoder):
-        self.words = words
-        self.encoder = text_encoder
-        self.transitions = transitions
-
-    def encoded(self, index):
-        text = self.words[index]
-        return [self.encoder.encode(ch) for ch in text]
-
-    def __len__(self):
-        return len(self.words)
-
-
 class TokenPassing:
     def __init__(self, dictionary, distribution):
         graphs = []
@@ -280,7 +266,7 @@ class TokenPassing:
                 a = dictionary.words[i]
                 b = dictionary.words[j]
 
-                p = dictionary.transitions[a, b]
+                p = dictionary.transitions[(a, b)]
 
                 transition = Transition(graphs[i], graphs[j], p)
                 network.add_transition(transition)

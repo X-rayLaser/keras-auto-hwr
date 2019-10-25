@@ -1,6 +1,7 @@
 from unittest import TestCase
 import numpy as np
-from algorithms.token_passing import State, Transition, Graph, Token, WordModelFactory, WordDictionary, TokenPassing
+from algorithms.token_passing import State, Transition, Graph, Token, WordModelFactory, TokenPassing
+from data.language_models import WordDictionary
 from data.encodings import CharacterTable
 
 
