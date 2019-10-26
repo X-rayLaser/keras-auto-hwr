@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize
 from collections import Counter
 import itertools
 from data.encodings import TextEncodingTable
+import numpy as np
 
 
 class ProcessingStep:
@@ -63,15 +64,23 @@ class NormalizationStep(ProcessingStep):
         return self._normalizer.preprocess([x])[0]
 
     def set_parameters(self, params_dict):
-        mu = params_dict['mu']
-        sd = params_dict['sd']
+        mu = np.array(params_dict['mu'])
+        sd = np.array(params_dict['sd'])
         self._normalizer.set_mean(mu)
         self._normalizer.set_deviation(sd)
 
     def get_parameters(self):
+        mu = self._normalizer.mu
+        sd = self._normalizer.sd
+        if not isinstance(mu, list):
+            mu = mu.tolist()
+
+        if not isinstance(sd, list):
+            sd = sd.tolist()
+
         return {
-            'mu': self._normalizer.mu.tolist(),
-            'sd': self._normalizer.sd.tolist()
+            'mu': mu,
+            'sd': sd
         }
 
 

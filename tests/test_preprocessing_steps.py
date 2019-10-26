@@ -1,7 +1,31 @@
 from unittest import TestCase
 from data.preprocessing import WordEncodingStep
 from data.preprocessing import UnicodeEncodingStep
+from data.preprocessing import NormalizationStep
 from data.encodings import TextEncodingTable
+
+
+class NormalizationStepTests(TestCase):
+    def test_set_and_retrieve_parameters(self):
+        step = NormalizationStep()
+        params = {
+            'mu': [0, 0, 0, 1],
+            'sd': [1, 2, 1, 1]
+        }
+        step.set_parameters(params)
+        res = step.get_parameters()
+        self.assertEqual(params, res)
+
+    def test_preprocess_after_setting_parameters(self):
+        step = NormalizationStep()
+        params = {
+            'mu': [0, 0, 0, 1],
+            'sd': [1, 2, 3, 4]
+        }
+        step.set_parameters(params)
+        x = [(1, 2, 3, 1)]
+        expected_x = [[1, 1, 1, 1]]
+        self.assertEqual(expected_x, step.process_x(x))
 
 
 class WordEncodingStepTests(TestCase):
