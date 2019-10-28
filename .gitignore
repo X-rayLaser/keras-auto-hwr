@@ -10,3 +10,4 @@ backup_weights/
 *.pyc
 \.idea/
 *.zip
+english.json

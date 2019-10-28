@@ -250,11 +250,11 @@ class WordModelFactory:
 
 
 class TokenPassing:
-    def __init__(self, dictionary, distribution):
+    def __init__(self, dictionary, distribution, text_encoder):
         graphs = []
         factory = WordModelFactory(distribution)
         for i in range(len(dictionary)):
-            codes = dictionary.encoded(i)
+            codes = dictionary.encoded(i, text_encoder)
             model = factory.create_model(codes, model_id=i)
             graphs.append(model)
 
@@ -266,10 +266,11 @@ class TokenPassing:
                 a = dictionary.words[i]
                 b = dictionary.words[j]
 
-                p = dictionary.transitions[(a, b)]
+                p = dictionary.transition_p(a, b)
 
-                transition = Transition(graphs[i], graphs[j], p)
-                network.add_transition(transition)
+                if p > 0:
+                    transition = Transition(graphs[i], graphs[j], p)
+                    network.add_transition(transition)
 
         self._network = network
 
@@ -278,9 +279,13 @@ class TokenPassing:
         self._dictionary = dictionary
 
     def decode(self):
-        for _ in range(self._num_steps):
+        for i in range(self._num_steps):
             self._network.evolve()
             self._network.commit()
 
         token = self._network.optimal_path()
         return token.words
+
+
+# todo: each word can start or end with punctuation sign
+# todo: optimize algorithm (store in each state node links to incoming tokens on each step)

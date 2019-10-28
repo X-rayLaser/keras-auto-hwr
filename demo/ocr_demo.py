@@ -15,9 +15,7 @@ from sources.wrappers import OffsetPointsSource, NormalizedSource, Normalizer
 from models.ctc_model import CtcModel
 from data.h5containers import H5pyDataSet
 from sources.wrappers import H5pySource
-from tests.test_predictor import Predictor
-from models.ctc_model import BestPathClassPredictor, CTCOutputDecoder
-from data.example_adapters import CTCAdapter
+from factories import BestPathDecodingFactory, TokenPassingDecodingFactory
 
 PORT = 8080
 TIMEOUT = 1
@@ -96,11 +94,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                     X.append(stroke)
                     stroke = []
 
-            best_path_decoder = BestPathClassPredictor(ctc_model.inference_model)
-
-            adapter = CTCAdapter(encoding_table.sentinel)
-            output_decoder = CTCOutputDecoder(encoding_table)
-            predictor = Predictor(best_path_decoder, home.get_preprocessor(), adapter, output_decoder)
+            #factory = BestPathDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
+            factory = TokenPassingDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
+            predictor = factory.get_predictor()
 
             s = predictor.predict(X)
 

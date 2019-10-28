@@ -202,19 +202,19 @@ class BestPathClassPredictor:
 
 
 class TokenPassingPredictor:
-    def __init__(self, model):
+    def __init__(self, model, word_dict):
         self._model = model
+        self._word_dict = word_dict
 
     def predict(self, x):
         from algorithms.token_passing import TokenPassing
-        from data.language_models import WordDictionary
         from data.encodings import CharacterTable
 
         pmfs = self._model.predict(x)[0]
 
         # todo use debug dictionary
-        dictionary = WordDictionary([], {}, CharacterTable())
-        algo = TokenPassing(dictionary, pmfs)
+        dictionary = self._word_dict
+        algo = TokenPassing(dictionary, pmfs, CharacterTable())
 
         return algo.decode()
 

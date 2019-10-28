@@ -1,4 +1,5 @@
 from nltk.tokenize import word_tokenize
+import json
 
 
 class BaseTokenizer:
@@ -27,7 +28,7 @@ class TransitionsBuilder:
             for second_word, prob in pmf.items():
                 transitions_tuples[(first_word, second_word)] = prob
 
-        return WordDictionary(words, transitions_tuples, None)
+        return WordDictionary(words, transitions_tuples)
 
     def build_transitions(self, words, sentences_generator):
         res = self.initialize_dictionary(words)
@@ -71,17 +72,69 @@ class TransitionsBuilder:
 
 class WordDictionary:
     @staticmethod
+    def load(path):
+        with open(path, 'r') as f:
+            s = f.read()
+
+        d = json.loads(s)
+
+        words = d['words']
+
+        nested_dict = d['transitions']
+        transitions = WordDictionary.to_tuples_dict(nested_dict)
+
+        return WordDictionary(words, transitions)
+
+    @staticmethod
     def build(provider):
         return TransitionsBuilder(provider).build()
 
-    def __init__(self, words, transitions, text_encoder):
+    def __init__(self, words, transitions):
         self.words = words
-        self.encoder = text_encoder
         self.transitions = transitions
 
-    def encoded(self, index):
+    def transition_p(self, src, dest):
+        if (src, dest) not in self.transitions:
+            return 0
+
+        return self.transitions[(src, dest)]
+
+    def encoded(self, index, text_encoder):
         text = self.words[index]
-        return [self.encoder.encode(ch) for ch in text]
+        return [text_encoder.encode(ch) for ch in text]
 
     def __len__(self):
         return len(self.words)
+
+    def save(self, path):
+        d = {
+            'words': self.words,
+            'transitions': self.to_nested_dict(self.transitions)
+        }
+
+        s = json.dumps(d)
+
+        with open(path, 'w') as f:
+            f.write(s)
+
+    @staticmethod
+    def to_nested_dict(transitions):
+        d = {}
+        for tup, p in transitions.items():
+            a, b = tup
+            if a not in d:
+                d[a] = {}
+
+            d[a][b] = p
+
+        return d
+
+    @staticmethod
+    def to_tuples_dict(transitions):
+        res = {}
+        for first_word in transitions.keys():
+            d = transitions[first_word]
+            for second_word, p in d.items():
+                res[(first_word, second_word)] = p
+
+        return res
