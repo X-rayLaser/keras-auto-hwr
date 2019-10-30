@@ -1,8 +1,7 @@
-from data.char_table import CharacterTable
+from data.encodings import CharacterTable
 from models.ctc_model import CtcModel
 import os
-from sources.compiled import CompilationSource
-from train_ctc import LabelSource, CtcGenerator
+from data.data_set_home import DataSetHome
 from data.preprocessing import PreProcessor
 from keras import layers
 from config import CTCConfig
@@ -13,7 +12,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, default='./compiled')
+    parser.add_argument('--data_path', type=str, default='./compiled/ds1')
     parser.add_argument('--max_examples', type=int, default=128)
     parser.add_argument('--cuda', type=bool, default=False)
 

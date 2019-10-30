@@ -26,17 +26,38 @@ def create_source(path):
 
 
 class MyHandler(SimpleHTTPRequestHandler):
+    def _get_normalizer(self, preprocessor):
+        norm_step = preprocessor.steps[1]
+        d = norm_step.get_parameters()
+        normalizer = Normalizer()
+        normalizer.set_mean(d['mu'])
+        normalizer.set_deviation(d['sd'])
+        return normalizer
+
+    def _normalizer_to_dict(self, normalizer):
+        return {
+            'muX': normalizer.mu[0],
+            'muY': normalizer.mu[1],
+            'stdX': normalizer.sd[0],
+            'stdY': normalizer.sd[1]
+        }
+
+    def _prepare_example(self, points, transcription, normalizer):
+        d = {
+            'points': points,
+            'transcription': transcription,
+            'normalizer': self._normalizer_to_dict(normalizer)
+        }
+
+        return json.dumps(d)
+
     def do_GET(self):
         home = DataSetHome('./compiled/ds1', create_source)
         text_encoder = home.get_encoding_table()
         preprocessor = home.get_preprocessor()
         train, val, test = home.get_slices()
 
-        norm_step = preprocessor.steps[1]
-        d = norm_step.get_parameters()
-        normalizer = Normalizer()
-        normalizer.set_mean(d['mu'])
-        normalizer.set_deviation(d['sd'])
+        normalizer = self._get_normalizer(preprocessor)
 
         if self.path in ['/demo/public/index.html', '/demo/public/index.js']:
             super().do_GET()
@@ -48,27 +69,11 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             transcription = ''.join([text_encoder.decode(label) for label in y])
 
-            d = {
-                'points': x,
-                'transcription': transcription,
-                'normalizer': {
-                    'muX': normalizer.mu[0],
-                    'muY': normalizer.mu[1],
-                    'stdX': normalizer.sd[0],
-                    'stdY': normalizer.sd[1]
-                }
-            }
-
-            s = json.dumps(d)
+            s = self._prepare_example(x, transcription, normalizer)
             self.wfile.write(bytes(s, encoding='ascii'))
         elif self.path == '/get_normalizer':
             d = {
-                'normalizer': {
-                    'muX': normalizer.mu[0],
-                    'muY': normalizer.mu[1],
-                    'stdX': normalizer.sd[0],
-                    'stdY': normalizer.sd[1]
-                }
+                'normalizer': self._normalizer_to_dict(normalizer)
             }
 
             s = json.dumps(d)
@@ -86,16 +91,10 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             ctc_model = CtcModel(LSTM, 4, encoding_table, 100, './weights/blstm/blstm.h5')
 
-            X = []
-            stroke = []
-            for x, y, t, eos in points_4d:
-                stroke.append((x, y, t))
-                if eos == 1:
-                    X.append(stroke)
-                    stroke = []
+            X = self._preprocess_input(points_4d)
 
-            #factory = BestPathDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
-            factory = TokenPassingDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
+            factory = BestPathDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
+            #factory = TokenPassingDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
             predictor = factory.get_predictor()
 
             s = predictor.predict(X)
@@ -106,6 +105,16 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             s = json.dumps(d)
             self.wfile.write(bytes(s, encoding='ascii'))
+
+    def _preprocess_input(self, points_4d):
+        X = []
+        stroke = []
+        for x, y, t, eos in points_4d:
+            stroke.append((x, y, t))
+            if eos == 1:
+                X.append(stroke)
+                stroke = []
+        return X
 
 
 def open_browser():
@@ -122,6 +131,12 @@ def start_server():
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--token_passing', type=bool, default=False)
+
+    args = parser.parse_args()
     open_browser()
     start_server()
 

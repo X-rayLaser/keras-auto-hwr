@@ -12,9 +12,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.num_examples == 0:
-        print('WARNING: num_examples is set to 0, thus all data will be used')
-
     api.compile_data_set(data_provider=args.data_provider,
                          preprocessor_name=args.preprocessor_name,
                          name=args.ds_name, num_examples=args.num_examples)

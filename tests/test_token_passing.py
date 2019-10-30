@@ -426,13 +426,24 @@ class TokenPassingTests(TestCase):
         self.world_code = 1
         self.dictionary = WordDictionary(["hello", "world"], transitions)
 
-    def create_distribution(self, text):
+    def text_to_codes(self, text):
         char_table = CharacterTable()
 
         codes = [char_table.encode(ch) for ch in text]
 
-        Tx = len(text)
-        n = len(char_table)
+        blank = len(char_table)
+        seq = [blank]
+        for code in codes:
+            seq.append(code)
+            seq.append(blank)
+
+        return seq
+
+    def create_distribution(self, codes):
+        char_table = CharacterTable()
+
+        Tx = len(codes)
+        n = len(char_table) + 1
         a = np.zeros((Tx, n))
         for i, code in enumerate(codes):
             a[i, code] = 1.0
@@ -440,42 +451,42 @@ class TokenPassingTests(TestCase):
         return a
 
     def test_with_hello(self):
-        distribution = self.create_distribution('hhhheeellllllo')
+        distribution = self.create_distribution(self.text_to_codes('hello'))
 
         decoder = TokenPassing(self.dictionary, distribution, self.char_table)
         res = decoder.decode()
         self.assertEqual([self.hello_code], res)
 
     def test_with_world(self):
-        distribution = self.create_distribution('wworrrlldddd')
+        distribution = self.create_distribution(self.text_to_codes('world'))
 
         decoder = TokenPassing(self.dictionary, distribution, self.char_table)
         res = decoder.decode()
         self.assertEqual([self.world_code], res)
 
     def test_with_hello_world(self):
-        distribution = self.create_distribution('hheellloowworrlldd')
+        distribution = self.create_distribution(self.text_to_codes('hello') + self.text_to_codes('world'))
 
         decoder = TokenPassing(self.dictionary, distribution, self.char_table)
         res = decoder.decode()
         self.assertEqual([self.hello_code, self.world_code], res)
 
     def test_with_world_hello(self):
-        distribution = self.create_distribution('wwwoorrlddhello')
+        distribution = self.create_distribution(self.text_to_codes('world') + self.text_to_codes('hello'))
 
         decoder = TokenPassing(self.dictionary, distribution, self.char_table)
         res = decoder.decode()
         self.assertEqual([self.world_code, self.hello_code], res)
 
     def test_with_repeating_word(self):
-        distribution = self.create_distribution('hellohello')
+        distribution = self.create_distribution(self.text_to_codes('hello') + self.text_to_codes('hello'))
 
         decoder = TokenPassing(self.dictionary, distribution, self.char_table)
         res = decoder.decode()
         self.assertEqual([self.hello_code, self.hello_code], res)
 
     def test_partial_match(self):
-        distribution = self.create_distribution('hheel')
+        distribution = self.create_distribution(self.text_to_codes('hel'))
 
         decoder = TokenPassing(self.dictionary, distribution, self.char_table)
         res = decoder.decode()

@@ -2,9 +2,11 @@ import numpy as np
 
 
 class Token:
-    def __init__(self, score, history, words=None):
+    def __init__(self, score, history, words=None, parent_node=None):
         self.score = score
         self.history = history
+
+        self.parent_node = parent_node
 
         if words is None:
             self.words = []
@@ -34,13 +36,13 @@ class Token:
         return Token(score, history, words)
 
     def update_score(self, cost):
-        return Token(self.score + cost, list(self.history), list(self.words))
+        return Token(self.score + cost, list(self.history), list(self.words), parent_node=self.parent_node)
 
     def update_history(self, node_id):
-        return Token(self.score, self.history + [node_id], list(self.words))
+        return Token(self.score, self.history + [node_id], list(self.words), parent_node=self.parent_node)
 
     def update_words(self, new_word_id):
-        return Token(self.score, list(self.history), self.words + [new_word_id])
+        return Token(self.score, list(self.history), self.words + [new_word_id], parent_node=self.parent_node)
 
     def __repr__(self):
         return '(score: {}, history: {}, words: {})'.format(
@@ -75,10 +77,11 @@ class Node:
 class State(Node):
     infinite_score = np.inf
 
-    def __init__(self, state, probabilities):
+    def __init__(self, state, probabilities, parent=None):
         super().__init__()
         self.state = state
         self.p = probabilities
+        self.parent = parent
 
         self._token = Token(self.infinite_score, [])
         self._score = self.infinite_score
@@ -255,7 +258,14 @@ class TokenPassing:
         factory = WordModelFactory(distribution)
         for i in range(len(dictionary)):
             codes = dictionary.encoded(i, text_encoder)
-            model = factory.create_model(codes, model_id=i)
+            blank = len(text_encoder)
+
+            seq = [blank]
+            for code in codes:
+                seq.append(code)
+                seq.append(blank)
+
+            model = factory.create_model(seq, model_id=i)
             graphs.append(model)
 
         network = Graph(graphs)
@@ -288,4 +298,4 @@ class TokenPassing:
 
 
 # todo: each word can start or end with punctuation sign
-# todo: optimize algorithm (store in each state node links to incoming tokens on each step)
+# todo: re-implement in C++

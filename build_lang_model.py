@@ -32,6 +32,7 @@ class DictionaryBuilder:
             words = [word for word in webtext.words(file_id) if word[0].isalnum()]
             freq_dict = freq_dict + nltk.FreqDist(nltk.bigrams(words))
 
+        # todo wrong! we need to obtain <max_words> words but this will result in <max_word> number of bi-grams
         return freq_dict.most_common(max_words)
 
     def extract_words(self, bi_grams):
@@ -86,8 +87,6 @@ if __name__ == '__main__':
     word_dictionary.save(args.destination)
 
 
-# todo adopt word dictionary builder class so as to allow using lines generator
-# todo furthermore, add text encoding parameter
 # todo perform this step automatically during compilation step
 # todo factories for predictors
 # todo pass lang model path to the ocrdemo script
