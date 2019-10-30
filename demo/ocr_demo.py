@@ -16,6 +16,7 @@ from models.ctc_model import CtcModel
 from data.h5containers import H5pyDataSet
 from sources.wrappers import H5pySource
 from factories import BestPathDecodingFactory, TokenPassingDecodingFactory
+from train_ctc import build_model
 
 PORT = 8080
 TIMEOUT = 1
@@ -89,7 +90,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             encoding_table = home.get_encoding_table()
 
-            ctc_model = CtcModel(LSTM, 4, encoding_table, 100, './weights/blstm/blstm.h5')
+            ctc_model = build_model(cuda=False, warp=False, encoding_table=encoding_table)
 
             X = self._preprocess_input(points_4d)
 

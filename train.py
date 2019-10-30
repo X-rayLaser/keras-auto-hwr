@@ -1,11 +1,10 @@
 from data.encodings import CharacterTable
-from models.seq2seq import SequenceToSequenceTrainer
+from experimental.seq2seq import SequenceToSequenceTrainer
 from data.generators import MiniBatchGenerator
 from data.data_set_home import DataSetHome
 from api import CompilationHome
 from data.example_adapters import Seq2seqAdapter
-from data.h5containers import H5pyDataSet
-from sources.wrappers import H5pySource
+from data.data_set_home import create_random_source
 
 
 def train(data_path, max_examples, lrate, epochs):
@@ -14,7 +13,7 @@ def train(data_path, max_examples, lrate, epochs):
     trainer = SequenceToSequenceTrainer(char_table, input_channels=4)
 
     location = CompilationHome('ds1').root_dir
-    ds_home = DataSetHome(location, create_source)
+    ds_home = DataSetHome(location, create_random_source)
 
     train_source, val_source, test_slice = ds_home.get_slices()
 
@@ -37,15 +36,6 @@ def train(data_path, max_examples, lrate, epochs):
         validation_data=val_gen.get_examples(),
         validation_steps=validation_steps,
         epochs=epochs)
-
-    estimator = trainer.get_performance_estimator(validation_steps)
-    error_rate = estimator.estimate(train_gen)
-
-    print(error_rate)
-
-
-def create_source(path):
-    return H5pySource(H5pyDataSet(path), random_order=True)
 
 
 if __name__ == '__main__':

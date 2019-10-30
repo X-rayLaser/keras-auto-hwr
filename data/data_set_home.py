@@ -2,6 +2,16 @@ import json
 import os
 from data import preprocessing, PreProcessor
 from data.encodings import TextEncodingTable
+from sources.wrappers import H5pySource
+from data.h5containers import H5pyDataSet
+
+
+def create_deterministic_source(path):
+    return H5pySource(H5pyDataSet(path), random_order=False)
+
+
+def create_random_source(path):
+    return H5pySource(H5pyDataSet(path), random_order=True)
 
 
 class DataSetHome:

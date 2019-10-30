@@ -1,5 +1,5 @@
-from tensorflow.keras.layers import SimpleRNN, LSTM, Bidirectional, CuDNNLSTM, Dense, TimeDistributed, Input, Lambda, GRU, Conv1D, Reshape, MaxPool1D, Softmax
-from data.char_table import CharacterTable
+from tensorflow.keras.layers import Bidirectional, Dense, TimeDistributed, Input
+from data.encodings import CharacterTable
 from tensorflow.keras.models import Model
 import tensorflowjs as tfjs
 import tensorflow as tf

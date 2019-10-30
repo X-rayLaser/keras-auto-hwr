@@ -1,112 +1,13 @@
-import tensorflow as tf
-from keras.layers import SimpleRNN, LSTM, Bidirectional, CuDNNLSTM, Dense, TimeDistributed, Input, Lambda, GRU, Conv1D, Reshape, MaxPool1D, Softmax
-from keras.models import Sequential, Model
-import numpy as np
+from keras.layers import Bidirectional, Dense, TimeDistributed, Input, Lambda
+from keras.models import Model
 from keras import backend as K
-from keras.optimizers import Adam, RMSprop, SGD
-from keras.callbacks import Callback
+from keras.optimizers import Adam
 import os
-from data.encodings import CharacterTable
 from keras.callbacks import Callback, TensorBoard
 from tests.test_predictor import DebugPredictor
 from data.example_adapters import CTCAdapter
-
-
-class BaseCtcModel:
-    def __init__(self, recurrent_layer, num_labels, embedding_size=2, num_cells=150):
-        self.graph_input = Input(shape=(None, embedding_size))
-        self.rnn = Bidirectional(
-            recurrent_layer(units=num_cells, input_shape=(None, embedding_size),
-                            return_sequences=True)
-        )
-        self.densor = TimeDistributed(Dense(units=num_labels, activation=None))
-
-        self.num_labels = num_labels
-
-    def model_inputs(self):
-        labels = Input(name='the_labels',
-                       shape=[None], dtype='float32')
-        input_length = Input(name='input_length', shape=[1], dtype='int64')
-        label_length = Input(name='label_length', shape=[1], dtype='int64')
-        return self.graph_input, labels, input_length, label_length
-
-
-class WarpCtcModel:
-    def __init__(self, recurrent_layer, embedding_size, num_cells):
-        import warpctc_tensorflow
-
-        char_table = CharacterTable()
-        num_labels = len(char_table) + 1
-
-        self.num_labels = num_labels
-        self.graph_input = Input(shape=(None, embedding_size))
-        self.lstm = Bidirectional(recurrent_layer(units=num_cells, input_shape=(None, embedding_size), return_sequences=True))
-        self.densor = TimeDistributed(Dense(units=self.num_labels, activation=None))
-
-        self.input_lengths = tf.placeholder(tf.int32, shape=[None])
-        self.label_lengths = tf.placeholder(tf.int32, shape=[None])
-
-        self.flat_labels = tf.placeholder(tf.int32, shape=[None])
-
-        x = self.graph_input
-        x = self.lstm(x)
-        linear_output = self.densor(x)
-
-        a = Softmax()(linear_output)
-
-        activations = tf.transpose(linear_output, perm=[1, 0, 2])
-
-        self.loss = warpctc_tensorflow.ctc(activations, self.flat_labels, self.label_lengths,
-                                           self.input_lengths, blank_label=self.num_labels-1)
-
-        self.inference_model = Model(input=self.graph_input, output=a)
-
-    def feeds(self, gen, batch_size):
-        for i, (inputs, outputs) in enumerate(gen.get_examples(batch_size)):
-            if i >= len(gen):
-                break
-            x, labels, input_length, label_length = inputs
-
-            labels = labels.reshape(label_length[0][0])
-
-            feed_dict = {
-                self.graph_input: x,
-                self.flat_labels: labels,
-                self.label_lengths: label_length[0],
-                self.input_lengths: input_length[0]
-            }
-            yield feed_dict
-
-    def evaluate(self, gen, sess):
-        losses = []
-        for feed_dict in self.feeds(gen, 1):
-            loss_value = sess.run(self.loss, feed_dict=feed_dict)
-            losses.append(loss_value)
-
-        return np.mean(losses)
-
-    def fig_generator(self, train_gen, val_gen, lrate, epochs, char_table):
-        optimizer = tf.train.AdamOptimizer(lrate)
-        train = optimizer.minimize(self.loss)
-
-        callback = MyCallback(self.inference_model, train_gen, val_gen, char_table)
-
-        with tf.Session() as sess:
-            init = tf.global_variables_initializer()
-            sess.run(init)
-
-            for epoch in range(epochs):
-                print('Epoch', epoch)
-                print()
-
-                for i, feed_dict in enumerate(self.feeds(train_gen, batch_size=1)):
-                    sess.run(train, feed_dict=feed_dict)
-
-                    loss_value = sess.run(self.loss, feed_dict=feed_dict)
-                    print('{} / {}, loss {}'.format(i + 1, len(train_gen), loss_value))
-
-                print('val_loss:', self.evaluate(val_gen, sess))
-                callback.on_epoch_end(epoch)
+from algorithms.token_passing import TokenPassing
+from data.encodings import CharacterTable
 
 
 class CtcModel:
@@ -202,19 +103,16 @@ class BestPathClassPredictor:
 
 
 class TokenPassingPredictor:
-    def __init__(self, model, word_dict):
+    def __init__(self, model, word_dict, encoding_table):
         self._model = model
         self._word_dict = word_dict
+        self._encoding_table = encoding_table
 
     def predict(self, x):
-        from algorithms.token_passing import TokenPassing
-        from data.encodings import CharacterTable
-
         pmfs = self._model.predict(x)[0]
 
-        # todo use debug dictionary
         dictionary = self._word_dict
-        algo = TokenPassing(dictionary, pmfs, CharacterTable())
+        algo = TokenPassing(dictionary, pmfs, self._encoding_table)
 
         return algo.decode()
 

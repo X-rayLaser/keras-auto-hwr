@@ -1,54 +1,33 @@
-from data.encodings import CharacterTable
-from models.ctc_model import CtcModel
-import os
-from data.data_set_home import DataSetHome
-from data.preprocessing import PreProcessor
-from keras import layers
-from config import CTCConfig
+from data.data_set_home import DataSetHome, create_random_source
 from train_ctc import build_model
+from api import CompilationHome
+from data.example_adapters import CTCAdapter
+from data.generators import MiniBatchGenerator
 
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, default='./compiled/ds1')
-    parser.add_argument('--max_examples', type=int, default=128)
+    parser.add_argument('--dataset_name', type=str, default='ds1')
     parser.add_argument('--cuda', type=bool, default=False)
 
     args = parser.parse_args()
 
-    recurrent_layer = getattr(layers, args.recurrent_layer)
+    location = CompilationHome(args.dataset_name).root_dir
+    home = DataSetHome(location, create_random_source)
 
-    num_features = CTCConfig().config_dict['num_features']
-    num_cells = args.num_cells
-    char_table = CharacterTable()
-    model_path = args.model_path
+    encoding_table = home.get_encoding_table()
+    ctc_model = build_model(args.cuda, encoding_table=encoding_table)
 
-    ctc_model = build_model(args.cuda, warp=False)
+    train_source, val_source, test_slice = home.get_slices()
 
-    data_path = args.data_path
+    sentinel = encoding_table.sentinel
+    adapter = CTCAdapter(y_padding=sentinel)
 
-    train_source = CompilationSource(
-        os.path.join(data_path, 'train.h5py'), args.max_examples
-    )
-
-    test_source = CompilationSource(
-        os.path.join(data_path, 'test.h5py'), args.max_examples
-    )
-
-    train_source = LabelSource(train_source, char_table)
-    test_source = LabelSource(test_source, char_table)
-
-    preprocessor = PreProcessor()
-
-    train_gen = CtcGenerator(char_table, train_source, preprocessor, channels=num_features)
-    test_gen = CtcGenerator(char_table, test_source, preprocessor, channels=num_features)
+    test_gen = MiniBatchGenerator(test_slice, adapter, batch_size=1)
 
     model = ctc_model.compile_model(0.001)
 
-    res = model.evaluate_generator(train_gen.get_examples(1), steps=len(train_gen))
-    print('evalution on train data:', res)
-
-    res = model.evaluate_generator(test_gen.get_examples(1), steps=len(test_gen))
-    print('evalution on test data:', res)
+    res = model.evaluate_generator(test_gen.get_examples(), steps=len(test_slice))
+    print('evaluation on test data:', res)

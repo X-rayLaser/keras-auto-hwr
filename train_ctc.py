@@ -39,7 +39,7 @@ def normalized_source(source, normalizer):
     return PreLoadedSource(processed, seqs_out)
 
 
-def build_model(cuda, warp, encoding_table):
+def build_model(cuda, encoding_table):
     ctc_config = CTCConfig()
     rnn_layer = ctc_config.config_dict['recurrent_layer']
     num_cells = ctc_config.config_dict['num_cells']
@@ -56,11 +56,8 @@ def build_model(cuda, warp, encoding_table):
         else:
             RNN_LAYER = getattr(layers, rnn_layer)
 
-    if warp:
-        ctc_model = WarpCtcModel(RNN_LAYER, num_features, num_cells=num_cells)
-    else:
-        ctc_model = CtcModel(RNN_LAYER, num_features, encoding_table,
-                             num_cells=num_cells, save_path=weights_location)
+    ctc_model = CtcModel(RNN_LAYER, num_features, encoding_table,
+                         num_cells=num_cells, save_path=weights_location)
 
     return ctc_model
 
@@ -79,7 +76,6 @@ if __name__ == '__main__':
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=500)
 
-    parser.add_argument('--warp', type=bool, default=False)
     parser.add_argument('--cuda', type=bool, default=False)
 
     args = parser.parse_args()
@@ -98,11 +94,10 @@ if __name__ == '__main__':
     train_gen = MiniBatchGenerator(train_source, adapter, batch_size=1)
     val_gen = MiniBatchGenerator(val_source, adapter, batch_size=1)
 
-    ctc_model = build_model(args.cuda, args.warp, encoding_table)
+    ctc_model = build_model(args.cuda, encoding_table)
     ctc_model.fit_generator(train_gen, val_gen, args.lrate,
                             args.epochs)
 
 
-# todo: reuse code for predictor, output decoder etc
 # todo: advanced preprocessing/normalizing stage
 # todo: error correction by intepolating missing values and truncating too large point sequences

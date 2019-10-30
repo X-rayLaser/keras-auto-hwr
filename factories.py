@@ -1,6 +1,7 @@
 from data.example_adapters import CTCAdapter
 from models.ctc_model import CTCOutputDecoder, BestPathClassPredictor, TokenPassingPredictor
 from tests.test_predictor import Predictor
+from data.language_models import WordDictionary
 
 
 class PredictorFactory:
@@ -38,10 +39,9 @@ class TokenPassingDecodingFactory(CTCPredictorFactory):
 
     def get_predictor(self):
         adapter = self.get_adapter(self._text_encoder.sentinel)
-        from data.language_models import WordDictionary
 
         word_dict = WordDictionary.load('english.json')
-        class_predictor = TokenPassingPredictor(self._model, word_dict)
+        class_predictor = TokenPassingPredictor(self._model, word_dict, self._text_encoder)
 
         decoder = self.OutputDecoder(word_dict)
 

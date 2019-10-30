@@ -1,7 +1,7 @@
 from keras import Input, Model
 from keras.activations import softmax
 from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector,\
-    Concatenate, Activation, Dot, Reshape, CuDNNGRU, Dropout
+    Concatenate, Activation, Dot, Reshape
 
 from models import BaseModel
 from keras.optimizers import RMSprop
@@ -9,8 +9,8 @@ import numpy as np
 from estimate import AttentionModelMetric
 from keras.callbacks import Callback, ReduceLROnPlateau
 from algorithms.beam_search import BaseBeamSearch
-from models.encoder_spec import EncoderSpec
-from keras.regularizers import l1, l2
+from experimental.encoder_spec import EncoderSpec
+from keras.regularizers import l2
 
 
 class Seq2SeqWithAttention(BaseModel):
