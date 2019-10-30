@@ -9,33 +9,19 @@ import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from data.data_set_home import DataSetHome
 from sources.wrappers import DenormalizedSource, Normalizer
-from keras.layers import LSTM
-from sources.wrappers import OffsetPointsSource, NormalizedSource, Normalizer
 
-from models.ctc_model import CtcModel
-from data.h5containers import H5pyDataSet
-from sources.wrappers import H5pySource
 from factories import BestPathDecodingFactory, TokenPassingDecodingFactory
 from train_ctc import build_model
-
+from data.data_set_home import create_random_source
 PORT = 8080
 TIMEOUT = 1
 
 
-def create_source(path):
-    return H5pySource(H5pyDataSet(path), random_order=True)
+class ResponseStrategy:
+    def __init__(self, dataset_location):
+        self._home = DataSetHome(dataset_location, create_random_source)
 
-
-class MyHandler(SimpleHTTPRequestHandler):
-    def _get_normalizer(self, preprocessor):
-        norm_step = preprocessor.steps[1]
-        d = norm_step.get_parameters()
-        normalizer = Normalizer()
-        normalizer.set_mean(d['mu'])
-        normalizer.set_deviation(d['sd'])
-        return normalizer
-
-    def _normalizer_to_dict(self, normalizer):
+    def normalizer_to_dict(self, normalizer):
         return {
             'muX': normalizer.mu[0],
             'muY': normalizer.mu[1],
@@ -43,69 +29,87 @@ class MyHandler(SimpleHTTPRequestHandler):
             'stdY': normalizer.sd[1]
         }
 
-    def _prepare_example(self, points, transcription, normalizer):
+    def get_normalizer(self):
+        preprocessor = self._home.get_preprocessor()
+
+        norm_step = preprocessor.steps[1]
+        d = norm_step.get_parameters()
+        normalizer = Normalizer()
+        normalizer.set_mean(d['mu'])
+        normalizer.set_deviation(d['sd'])
+        return normalizer
+
+    def make_response(self, wfile):
+        pass
+
+
+class GetExample(ResponseStrategy):
+    def make_response(self, wfile):
+        text_encoder = self._home.get_encoding_table()
+        train, val, test = self._home.get_slices()
+
+        normalizer = self.get_normalizer()
+
+        source = DenormalizedSource(test, normalizer)
+        gen = source.get_sequences()
+
+        x, y = next(gen)
+
+        transcription = ''.join([text_encoder.decode(label) for label in y])
+
+        s = self.prepare_example(x, transcription, normalizer)
+        wfile.write(bytes(s, encoding='ascii'))
+
+    def prepare_example(self, points, transcription, normalizer):
         d = {
             'points': points,
             'transcription': transcription,
-            'normalizer': self._normalizer_to_dict(normalizer)
+            'normalizer': self.normalizer_to_dict(normalizer)
         }
 
         return json.dumps(d)
 
-    def do_GET(self):
-        home = DataSetHome('./compiled/ds1', create_source)
-        text_encoder = home.get_encoding_table()
-        preprocessor = home.get_preprocessor()
-        train, val, test = home.get_slices()
 
-        normalizer = self._get_normalizer(preprocessor)
+class GetNormalizer(ResponseStrategy):
+    def make_response(self, wfile):
+        normalizer = self.get_normalizer()
+        d = {
+            'normalizer': self.normalizer_to_dict(normalizer)
+        }
 
-        if self.path in ['/demo/public/index.html', '/demo/public/index.js']:
-            super().do_GET()
-        elif self.path == '/get_example':
-            source = DenormalizedSource(test, normalizer)
-            gen = source.get_sequences()
+        s = json.dumps(d)
+        wfile.write(bytes(s, encoding='ascii'))
 
-            x, y = next(gen)
 
-            transcription = ''.join([text_encoder.decode(label) for label in y])
+class MakePrediction(ResponseStrategy):
+    def __init__(self, dataset_location, data):
+        super().__init__(dataset_location)
+        self.data = data
 
-            s = self._prepare_example(x, transcription, normalizer)
-            self.wfile.write(bytes(s, encoding='ascii'))
-        elif self.path == '/get_normalizer':
-            d = {
-                'normalizer': self._normalizer_to_dict(normalizer)
-            }
+    def make_response(self, wfile):
+        data_string = self.data
 
-            s = json.dumps(d)
-            self.wfile.write(bytes(s, encoding='ascii'))
+        points_4d = json.loads(data_string)['line']
 
-    def do_POST(self):
-        length = int(self.headers.get('content-length'))
+        encoding_table = self._home.get_encoding_table()
 
-        if self.path == '/recognize':
-            data_string = self.rfile.read(length)
-            points_4d = json.loads(data_string)['line']
-            home = DataSetHome('./compiled/ds1', create_source)
+        ctc_model = build_model(cuda=False, encoding_table=encoding_table)
+        model = ctc_model.inference_model
+        preprocessor = self._home.get_preprocessor()
 
-            encoding_table = home.get_encoding_table()
+        X = self._preprocess_input(points_4d)
 
-            ctc_model = build_model(cuda=False, warp=False, encoding_table=encoding_table)
+        factory = BestPathDecodingFactory(model, preprocessor, encoding_table)
+        predictor = factory.get_predictor()
 
-            X = self._preprocess_input(points_4d)
+        s = predictor.predict(X)
 
-            factory = BestPathDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
-            #factory = TokenPassingDecodingFactory(ctc_model.inference_model, home.get_preprocessor(), home.get_encoding_table())
-            predictor = factory.get_predictor()
+        d = {
+            'prediction': s
+        }
 
-            s = predictor.predict(X)
-
-            d = {
-                'prediction': s
-            }
-
-            s = json.dumps(d)
-            self.wfile.write(bytes(s, encoding='ascii'))
+        s = json.dumps(d)
+        wfile.write(bytes(s, encoding='ascii'))
 
     def _preprocess_input(self, points_4d):
         X = []
@@ -118,16 +122,48 @@ class MyHandler(SimpleHTTPRequestHandler):
         return X
 
 
+def make_handler_class(home_location):
+    class MyHandler(SimpleHTTPRequestHandler):
+        def do_GET(self):
+            static_files = ['/demo/public/index.html', '/demo/public/index.js']
+
+            routes = {
+                '/get_example': GetExample(home_location),
+                '/get_normalizer': GetNormalizer(home_location)
+            }
+
+            if self.path in static_files:
+                super().do_GET()
+            elif self.path in routes:
+                response_strategy = routes[self.path]
+                response_strategy.make_response(self.wfile)
+
+        def do_POST(self):
+            length = int(self.headers.get('content-length'))
+            data_string = self.rfile.read(length)
+
+            routes = {
+                '/recognize': MakePrediction(home_location, data_string)
+            }
+
+            if self.path in routes:
+                response_strategy = routes[self.path]
+                response_strategy.make_response(self.wfile)
+
+    return MyHandler
+
+
 def open_browser():
-    def _open_browser():
+    def _open():
         webbrowser.open('http://localhost:{}/{}'.format(PORT, 'demo/public/index.html'))
-    thread = threading.Timer(TIMEOUT, _open_browser)
+    thread = threading.Timer(TIMEOUT, _open)
     thread.start()
 
 
-def start_server():
+def start_server(home_location):
     server_address = ("", PORT)
-    server = HTTPServer(server_address, MyHandler)
+    handler_class = make_handler_class(home_location)
+    server = HTTPServer(server_address, handler_class)
     server.serve_forever()
 
 
@@ -135,15 +171,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--home', type=str, default='compiled/ds1')
     parser.add_argument('--token_passing', type=bool, default=False)
 
     args = parser.parse_args()
     open_browser()
-    start_server()
+    start_server(args.home)
 
 
-# todo: fix this demo file
 # todo: customize size of canvas
-# todo: on end-of-stroke make post request sending points rendered so far to the server and make predictions
-# todo: when making predictions, make standard preprocessing, normalization, predict transcription and return it back
-# todo: display both predicted labelling and ground-true one

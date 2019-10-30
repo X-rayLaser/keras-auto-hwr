@@ -1,7 +1,7 @@
 from sources.preloaded import PreLoadedSource
 from data.encodings import CharacterTable
 from keras import layers
-from models.ctc_model import WarpCtcModel, CtcModel
+from models.ctc_model import CtcModel
 from api import CompilationHome
 from data.generators import MiniBatchGenerator
 from data.example_adapters import CTCAdapter
