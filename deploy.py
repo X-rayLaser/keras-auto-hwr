@@ -1,8 +1,8 @@
 from tensorflow.keras.layers import Bidirectional, Dense, TimeDistributed, Input
-from data.encodings import CharacterTable
 from tensorflow.keras.models import Model
 import tensorflowjs as tfjs
 import tensorflow as tf
+from data.data_set_home import DataSetHome, create_random_source
 
 
 if __name__ == '__main__':
@@ -11,6 +11,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--recurrent_layer', type=str, default='LSTM')
     parser.add_argument('--num_cells', type=int, default=100)
+    parser.add_argument('--data_home', type=str, default='./compiled/ds1')
+
     parser.add_argument('--model_path', type=str, default='./weights/blstm/blstm.h5')
     parser.add_argument('--output_path', type=str, default='./weights/deployed/blstm')
 
@@ -18,9 +20,11 @@ if __name__ == '__main__':
 
     recurrent_layer = getattr(tf.keras.layers, args.recurrent_layer)
 
+    data_home = DataSetHome(args.data_home, create_random_source)
+    char_table = data_home.get_encoding_table()
+
     embedding_size = 4
     num_cells = args.num_cells
-    char_table = CharacterTable()
     model_path = args.model_path
     output_path = args.output_path
 

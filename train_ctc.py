@@ -70,8 +70,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, default='./compiled')
-    parser.add_argument('--max_examples', type=int, default=1)
+    parser.add_argument('--data_home', type=str, default='./compiled/ds1')
 
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=500)
@@ -82,7 +81,7 @@ if __name__ == '__main__':
 
     print('training with following options:', args)
 
-    location = CompilationHome('ds1').root_dir
+    location = CompilationHome(args.data_home).root_dir
     ds_home = DataSetHome(location, create_source)
 
     train_source, val_source, test_slice = ds_home.get_slices()
