@@ -1,12 +1,38 @@
 # Introduction
 
-A micro-framework intended to easily train a system that performs
-recognition of unconstrained hand-written text. 
+keras-auto-hwr is a micro-framework for building a handwritten text 
+recognition (HTR) system built on top of Keras and TensorFlow.
+
+The central philosophy is to enable one to quickly train and test 
+an RNN to perform HTR with minimum upfront efforts. One only needs 
+to implement a thin API specifying how and where raw data for 
+training should be fetched from. The framework's pipeline will 
+automatically take care of steps such as pre-processing, 
+normalization, converting target sequences into one-hot 
+representation and more.
+
+# Features
+- minimal pre-processing
+- automatic data normalization
+- automatic encoding of text into a sequence of one-hot vectors
+- customizable and extendable pre-processing pipeline
+- built-in model (bidirectional LSTM model trained with CTC loss)
+- train on GPU, predict on CPU
+- saving/resuming training after any epoch
+- interactive demo for testing a trained model live
+- language-agnostic (work in progress)
+- deploy a trained model for use with TensorFlow.js
 
 # Limitations
-
-Currently, the repo can only be used to train an on-line recognition
-system.
+At the time of this writing, there are a few major limitations such as:
+- No support for building an offline recognition system.
+- Currently, the only model that is supported is the architecture 
+based around connectionist temporal classification
+- Fixed number of layers (2) and units (100)
+- No built-in encoder-decoder network architecture
+- Best path decoding algorithm is used to decode the output of 
+the RNN instead of more advanced ones (such as Token Passing 
+and CTC Beam Search)
 
 # Installation
 
@@ -81,6 +107,58 @@ python deploy.py
 
 Your deployed model will be in ./weights/deployed/blstm folder.
 
+## Training on arbitrary data set
+
+
+
+Create a subclass of BaseSource class in the data/providers.py 
+module by implementing constructor, get_sequences and 
+__len__ methods. You are free to do anything in those methods. 
+For instance, you can read the data in from the file or fetch 
+them through the network.
+
+The get_sequences method should return a 
+generator that returns raw handwriting data and corresponding 
+transcription text. Each handwriting should be a list of strokes. 
+Each stroke is itself a list of the following format: 
+(x1, y1, t1), (x2, y2, t2), ..., where x and y are pen position 
+coordinates and t is the time respectively. Add necessary 
+pre-processing if you need to.
+
+Here is an example.
+
+```
+class MyDataProvider(BaseSource):
+    def __init__(self, num_lines):
+        pass
+
+    def get_sequences(self):
+        hwr = [
+            [(23, 8, 323), (25, 9, 325)], # first stroke
+            [(55, 2, 340), (58, 2, 380)]  # second stroke
+        ]
+        
+        transcription = 'foobar'
+        
+        yield hwr, transcription
+
+    def __len__(self):
+        return 1
+```
+
+Next, compile a data set using a newly implemented data provider:
+```
+python compile.py 'MyDataProvider' 'default' --num_examples=1
+```
+
 # License
 
 This software is licensed under MIT license (see LICENSE).
+
+# Credits
+
+Many ideas and implementation details were borrowed from the following papers:
+
+1. [Alex Graves et. al. Unconstrained Online Handwriting Recognition with Recurrent Neural Networks](https://papers.nips.cc/paper/3213-unconstrained-on-line-handwriting-recognition-with-recurrent-neural-networks.pdf)
+
+2. [S. Young, N. Russell, and J. Thornton.  Token passing: A simple conceptual model for connected speech recognition system](https://pdfs.semanticscholar.org/963c/f8f238745100ac6cc5cf730653a6e1849b62.pdf?_ga=2.58290915.813220193.1572590064-1733760606.1572590064)
