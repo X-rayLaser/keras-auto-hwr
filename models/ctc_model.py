@@ -7,11 +7,12 @@ from keras.callbacks import Callback, TensorBoard
 from tests.test_predictor import DebugPredictor
 from data.example_adapters import CTCAdapter
 from algorithms.token_passing import TokenPassing
-from data.encodings import CharacterTable
 
 
 class CtcModel:
-    def __init__(self, recurrent_layer, embedding_size, encoding_table, num_cells=100, save_path='./trained.h5'):
+    def __init__(self, recurrent_layer, embedding_size, encoding_table, num_cells=100, save_path=None):
+        if save_path is None:
+            save_path = os.path.join(os.getcwd(), 'trained.h5')
         inp = Input(shape=(None, embedding_size))
         rnn_params = dict(units=num_cells, input_shape=(None, embedding_size),
                           return_sequences=True)
@@ -66,7 +67,6 @@ class CtcModel:
     def fit_generator(self, train_gen, val_gen, lrate, epochs, batch_size=1):
         model = self.compile_model(lrate)
         validation_steps = max(1, int(len(val_gen) / batch_size))
-        print('validation_steps', validation_steps)
 
         save_path = self.save_path
         inference_model = self.inference_model

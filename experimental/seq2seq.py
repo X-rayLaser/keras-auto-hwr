@@ -1,14 +1,14 @@
 import os
 
 from keras import Model, Input
-from keras.layers import SimpleRNN, Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense, GRU, CuDNNGRU
+from keras.layers import Bidirectional, Conv1D, MaxPool1D, Reshape, Concatenate, TimeDistributed, Dense, CuDNNGRU
 
 from models import BaseModel
-from estimate import Seq2seqMetric
+from experimental.estimate import Seq2seqMetric
 from keras.callbacks import Callback
 from keras.optimizers import RMSprop
 from algorithms.beam_search import BaseBeamSearch
-from util import visualize_stroke
+from experimental.util import visualize_stroke
 
 
 class BaseSeq2seq(BaseModel):
@@ -125,7 +125,6 @@ class Seq2seqAutoencoder(BaseSeq2seq):
                         counter += 1
                         input('Enter any key')
 
-        from keras.optimizers import Adam
         self._model.compile(optimizer=RMSprop(lr=lr), loss='mean_squared_error',
                             metrics=['mse'])
 

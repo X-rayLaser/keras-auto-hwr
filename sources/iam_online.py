@@ -7,6 +7,7 @@ from PIL import Image
 from PIL.ImageDraw import ImageDraw
 
 from sources import BaseSource
+from sources.preloaded import PreLoadedSource
 
 
 class OnlineSource(BaseSource):
@@ -80,9 +81,6 @@ class LinesSource(BaseSource):
 
     def __len__(self):
         return len(self._source)
-
-
-from sources.preloaded import PreLoadedSource
 
 
 def fetch_strokes(source, num_strokes):

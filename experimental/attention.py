@@ -6,7 +6,7 @@ from keras.layers import SimpleRNN, Bidirectional, Dense, RepeatVector,\
 from models import BaseModel
 from keras.optimizers import RMSprop
 import numpy as np
-from estimate import AttentionModelMetric
+from experimental.estimate import AttentionModelMetric
 from keras.callbacks import Callback, ReduceLROnPlateau
 from algorithms.beam_search import BaseBeamSearch
 from experimental.encoder_spec import EncoderSpec

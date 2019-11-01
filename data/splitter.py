@@ -120,7 +120,7 @@ class DataSplitter:
         self._test = buffer_factory.get_test_buffer()
 
     def get_buffer_factory(self):
-        root = os.path.join('./temp', 'split')
+        root = os.path.join(os.getcwd(), 'temp', 'split')
         if not os.path.exists(root):
             os.makedirs(root)
         return H5pyBufferFactory(root)

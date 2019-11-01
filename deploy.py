@@ -3,36 +3,38 @@ from tensorflow.keras.models import Model
 import tensorflowjs as tfjs
 import tensorflow as tf
 from data.data_set_home import DataSetHome, create_random_source
+import os
+from config import CTCConfig
 
 
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--recurrent_layer', type=str, default='LSTM')
-    parser.add_argument('--num_cells', type=int, default=100)
-    parser.add_argument('--data_home', type=str, default='./compiled/ds1')
+    cwd = os.getcwd()
+    compilation_path = os.path.join(cwd, 'compiled', 'ds1')
+    deploy_path = os.path.join(cwd, 'weights', 'deployed', 'blstm')
 
-    parser.add_argument('--model_path', type=str, default='./weights/blstm/blstm.h5')
-    parser.add_argument('--output_path', type=str, default='./weights/deployed/blstm')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_home', type=str, default=compilation_path)
+    parser.add_argument('--output_path', type=str, default=deploy_path)
 
     args = parser.parse_args()
-
-    recurrent_layer = getattr(tf.keras.layers, args.recurrent_layer)
+    ctc_config = CTCConfig()
 
     data_home = DataSetHome(args.data_home, create_random_source)
     char_table = data_home.get_encoding_table()
 
-    embedding_size = 4
-    num_cells = args.num_cells
-    model_path = args.model_path
-    output_path = args.output_path
+    recurrent_layer = getattr(tf.keras.layers, ctc_config.config_dict['recurrent_layer'])
+    num_cells = ctc_config.config_dict['num_cells']
+    model_path = ctc_config.config_dict['weights_location']
+    num_features = ctc_config.config_dict['num_features']
 
+    output_path = args.output_path
     label_space = len(char_table) + 1
 
-    inp = Input(shape=(None, embedding_size))
+    inp = Input(shape=(None, num_features))
     lstm = Bidirectional(recurrent_layer(units=num_cells,
-                                         input_shape=(None, embedding_size),
+                                         input_shape=(None, num_features),
                                          return_sequences=True,
                                          recurrent_activation='sigmoid'))
     densor = TimeDistributed(Dense(units=label_space, activation='softmax'))

@@ -170,8 +170,10 @@ def start_server(home_location):
 if __name__ == "__main__":
     import argparse
 
+    ds_home = os.path.join(os.getcwd(), 'compiled', 'ds1')
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--home', type=str, default='compiled/ds1')
+    parser.add_argument('--home', type=str, default=ds_home)
     parser.add_argument('--token_passing', type=bool, default=False)
 
     args = parser.parse_args()

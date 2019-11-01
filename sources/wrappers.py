@@ -34,12 +34,6 @@ class WordsSource(BaseSource):
             yield seq_in, words
 
 
-def embeddings_source(source, num_examples):
-    from train_on_embeddings import auto_encoder, get_embeddings
-    embeddings, transcriptions, _, _ = get_embeddings(auto_encoder.get_encoder(), source, num_examples)
-    return PreLoadedSource(embeddings, transcriptions)
-
-
 class LabelSource(BaseSource):
     def __init__(self, source, mapping_table):
         self._source = source
