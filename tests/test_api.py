@@ -21,6 +21,10 @@ class ApiTests(TestCase):
         if os.path.exists(self.home.root_dir):
             shutil.rmtree(self.home.root_dir)
 
+        temp = os.path.join('./temp')
+        if os.path.exists(temp):
+            shutil.rmtree(temp)
+
     def test_compile_with_invalid_parameters(self):
         self.assertRaises(
             api.ProviderNotFoundException,

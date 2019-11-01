@@ -121,6 +121,8 @@ class DataSplitter:
 
     def get_buffer_factory(self):
         root = os.path.join('./temp', 'split')
+        if not os.path.exists(root):
+            os.makedirs(root)
         return H5pyBufferFactory(root)
 
     def split(self):
