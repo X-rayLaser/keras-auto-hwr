@@ -10,6 +10,7 @@ from keras.utils import to_categorical
 from data.data_set_home import DataSetHome
 from data.h5containers import H5pyDataSet
 from sources.wrappers import H5pySource
+import os
 
 
 def dummy_source():
@@ -44,6 +45,11 @@ def build_model(cuda, encoding_table):
     rnn_layer = ctc_config.config_dict['recurrent_layer']
     num_cells = ctc_config.config_dict['num_cells']
     weights_location = ctc_config.config_dict['weights_location']
+    dir_path, _ = os.path.split(weights_location)
+
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
     num_features = ctc_config.config_dict['num_features']
 
     if rnn_layer == 'SimpleRNN':
