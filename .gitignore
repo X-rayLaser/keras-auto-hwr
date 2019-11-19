@@ -8,6 +8,11 @@ demo/node_modules/
 logs/
 backup_weights/
 weights/
+dictionary/
+*.o
+algorithms/cpp/token_passing
+algorithms/cpp/dictionary.txt
+algorithms/cpp/bigrams.txt
 *.pyc
 \.idea/
 *.zip

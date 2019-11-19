@@ -93,6 +93,10 @@ class WordDictionary:
         self.words = words
         self.transitions = transitions
 
+        self.word_to_index = {}
+        for i, word in enumerate(words):
+            self.word_to_index[word] = i
+
     def transition_p(self, src, dest):
         if (src, dest) not in self.transitions:
             return 0
@@ -116,6 +120,9 @@ class WordDictionary:
 
         with open(path, 'w') as f:
             f.write(s)
+
+    def word_index(self, word):
+        return self.word_to_index[word]
 
     @staticmethod
     def to_nested_dict(transitions):

@@ -111,6 +111,10 @@ class TokenPassingPredictor:
     def predict(self, x):
         pmfs = self._model.predict(x)[0]
 
+        from algorithms.token_passing import token_passing_cpp
+
+        token_passing_cpp(pmfs, self._encoding_table)
+
         dictionary = self._word_dict
         algo = TokenPassing(dictionary, pmfs, self._encoding_table)
 

@@ -297,5 +297,31 @@ class TokenPassing:
         return token.words
 
 
+def token_passing_cpp(pmfs, encoding_table):
+    # todo must return a list of words
+    import subprocess
+
+    num_steps = len(pmfs)
+    num_classes = len(pmfs[0])
+
+    prob_flatten = []
+    for pmf in pmfs:
+        prob_flatten.extend(pmf.tolist())
+
+    args = ["./algorithms/cpp/token_passing", "./algorithms/cpp/dictionary.txt", "./algorithms/cpp/bigrams.txt"]
+
+    args.append(str(num_steps))
+    args.append(str(num_classes))
+
+    for p in prob_flatten:
+        args.append(str(p))
+
+    codes = subprocess.check_output(args, universal_newlines=True)
+
+    res = ''.join([encoding_table.decode(code) for code in codes])
+    raise Exception(res)
+    return res
+
+
 # todo: each word can start or end with punctuation sign
 # todo: re-implement in C++
