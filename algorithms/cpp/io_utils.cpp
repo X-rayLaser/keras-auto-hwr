@@ -24,6 +24,16 @@ double TransitionRoot::probability(int to) {
     }
 }
 
+std::vector<std::pair<int, double>> TransitionRoot::children() {
+    std::vector<std::pair<int, double>> v;
+    
+    for (auto kv_pair : m_transitions) {
+        v.push_back(kv_pair);
+    }
+
+    return v;
+}
+
 
 std::vector<WordRepresentation> get_dictionary(std::string file_path) {
     std::ifstream ifs(file_path);

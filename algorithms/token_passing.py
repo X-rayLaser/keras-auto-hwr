@@ -299,6 +299,7 @@ class TokenPassing:
 
 def token_passing_cpp(pmfs, encoding_table):
     # todo must return a list of words
+    # todo: weird code 2047 received
     import subprocess
 
     num_steps = len(pmfs)
@@ -308,17 +309,23 @@ def token_passing_cpp(pmfs, encoding_table):
     for pmf in pmfs:
         prob_flatten.extend(pmf.tolist())
 
-    args = ["./algorithms/cpp/token_passing", "./algorithms/cpp/dictionary.txt", "./algorithms/cpp/bigrams.txt"]
+    with open('pmf.txt', 'w') as f:
+        prob_str = ' '.join(map(str, prob_flatten))
+        f.write('{} {}\n'.format(num_steps, num_classes))
+        f.write('{}\n'.format(prob_str))
 
-    args.append(str(num_steps))
-    args.append(str(num_classes))
+    args = ["./algorithms/cpp/token_passing", "./algorithms/cpp/dictionary.txt",
+            "./algorithms/cpp/bigrams.txt", "./pmf.txt"]
 
-    for p in prob_flatten:
-        args.append(str(p))
+    s = subprocess.check_output(args, universal_newlines=True)
 
-    codes = subprocess.check_output(args, universal_newlines=True)
+    from models.ctc_model import CTCOutputDecoder
 
-    res = ''.join([encoding_table.decode(code) for code in codes])
+    print(s.split(' '))
+    codes = list(map(int, s.split(' ')[:-1]))
+    print(codes)
+    res = CTCOutputDecoder(encoding_table).decode(codes)
+
     raise Exception(res)
     return res
 

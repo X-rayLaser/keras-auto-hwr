@@ -1,26 +1,32 @@
 #include "argparser.h"
+#include <iostream>
+#include <fstream>
  
+
+
 MySpace::CmdArgs MySpace::parse_args(int argc, char *argv[]) {
     std::string res_s = argv[0];
 
     std::string dictionary_path = argv[1];
     std::string bigrams_path = argv[2];
+    std::string pmf_path = argv[3];
 
-    double seq_len = std::atof(argv[3]);
-    double num_classes = std::atof(argv[4]);
+    std::vector<std::vector<double>> distributions;
 
-    argv++; //skip program's name
-    argv++; //skip dictionary path
-    argv++; //skip bigrams_path
-    argv++; //skip seq_len arg
-    argv++; //skip num_classes arg
+    std::ifstream ifs(pmf_path);
 
-    int counter = 0;
+    int seq_len;
+    int num_classes;
 
-    std::vector<std::vector<float>> distributions;
+    if (ifs.fail()) {
+        std::cout << "Failed to open a file\n";
+
+    }
+
+    ifs >> seq_len >> num_classes;
 
     for (int i = 0; i < seq_len; i++) {
-        std::vector<float> v;
+        std::vector<double> v;
         distributions.push_back(v);
     }
 
@@ -28,10 +34,10 @@ MySpace::CmdArgs MySpace::parse_args(int argc, char *argv[]) {
         std::vector<float> pmf;
 
         for (int j = 0; j < num_classes; j++) {
-            double p = std::atof(argv[counter]);
+            double p;
+            ifs >> p;
             distributions[i].push_back(p);
             std::string s = std::to_string(distributions[i][j]);
-            counter++;
         }
     }
 

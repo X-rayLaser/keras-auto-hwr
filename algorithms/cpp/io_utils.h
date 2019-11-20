@@ -12,11 +12,15 @@ class WordRepresentation {
 };
 
 
+
+
 class TransitionRoot {
     public:
         TransitionRoot(int src, std::map<int, double> transitions);
         TransitionRoot(const TransitionRoot& root);
         double probability(int to);
+
+        std::vector<std::pair<int, double>> children();
     private:
         int m_from;
         std::map<int, double> m_transitions;

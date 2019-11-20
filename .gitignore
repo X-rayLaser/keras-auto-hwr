@@ -16,4 +16,5 @@ algorithms/cpp/bigrams.txt
 *.pyc
 \.idea/
 *.zip
+*\.vscode/
 english.json

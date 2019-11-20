@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <limits>
 
 #include "argparser.h"
 #include "io_utils.h"
@@ -17,208 +18,345 @@ struct Candidate {
     double score;
     int model_id;
     int node_index;
+
+    Candidate() {
+        this->score = std::numeric_limits<double>::infinity();
+        this->model_id = -1;
+        this->node_index = -1;
+    }
+
+    Candidate(double score, double model_id, double node_index) {
+        this->score = score;
+        this->model_id = model_id;
+        this->node_index = node_index;
+    }
 };
 
 
-struct TransitLink {
+struct NodeId {
     int model_id;
     int node_index;
 };
 
 
-struct Node {
-    int node_id;
-    int model_id;
-    int code;
-    double score;
-    Candidate candidate;
+class Node {
+    public:
+        Node(int node_id, int model_id, int code):
+            m_node_id(node_id), m_model_id(model_id),
+            m_code(code), m_score(std::numeric_limits<double>::infinity())
+        {
+        }
 
-    vector<TransitLink> linked_nodes;
-    bool is_input;
-    bool is_output;
+        void pass_token(Candidate candidate) {
+            if (candidate.score < m_candidate.score) {
+                m_candidate = candidate;
+            }
+        }
 
-    vector<TransitLink> history;
+        void commit() {
+            m_score = m_candidate.score;
+
+            NodeId node_id;
+            node_id.node_index = m_candidate.node_index;
+            node_id.model_id = m_candidate.model_id;
+            m_history.push_back(node_id);
+            reset();
+        }
+
+        NodeId back_link(int t) {
+            return m_history[t];
+        }
+
+        int node_id() {
+            return m_node_id;
+        }
+
+        int model_id() {
+            return m_model_id;
+        }
+
+        int code() {
+            return m_code;
+        }
+
+        double score() {
+            return m_score;
+        }
+
+        int num_iterations() {
+            return m_history.size();
+        }
+    private:
+        int m_node_id;
+        int m_model_id;
+        int m_code;
+        double m_score;
+        Candidate m_candidate;
+        vector<NodeId> m_history;
+
+        void reset() {
+            m_candidate = Candidate();
+        }
 };
 
-vector<Node> create_model(vector<int> codes, int model_id) {
-    vector<Node> v;
 
-    for (auto code : codes) {
-        Node node;
-        node.node_id = v.size();
-        node.model_id = model_id;
-        node.code = code;
-        node.score = -1;
-        node.candidate.score = -1;
-        node.is_input = false;
-        node.is_output = false;
-        v.push_back(node);
-    }
+class Transition {
+    public:
+        virtual void pass_token(const vector<double>& emission_pmf) = 0;
 
-    for (int i = 0; i < v.size(); i++) {
-        vector<TransitLink> linked;
+        double emission_cost(double p) {
+            return - log(p);
+        }
+};
 
-        TransitLink transit_link;
-        transit_link.model_id = model_id;
-        transit_link.node_index = v[i].node_id;
-        linked.push_back(transit_link);
 
-        int next_index = i + 1;
-        if (next_index < v.size()) {
-            TransitLink transit_link;
-            transit_link.model_id = model_id;
-            transit_link.node_index = v[next_index].node_id;
-            linked.push_back(transit_link);
+class InternalTransition : public Transition {
+    public:
+        InternalTransition(Node* src, Node* dest):
+            m_src(src), m_dest(dest)
+        {
         }
 
-        v[i].linked_nodes = linked;
-    }
+        void pass_token(const vector<double>& emission_pmf) override {
+            int code = m_dest->code();
+            double p = emission_pmf[code];
+            float new_score = m_src->score() + emission_cost(p);
 
-    v[0].is_input = true;
-    v[v.size() - 1].is_output = true;
-    return v;
-}
+            Candidate candidate(new_score, m_src->model_id(), m_src->node_id());
+            m_dest->pass_token(candidate);
+        }
+    private:
+        Node* m_src;
+        Node* m_dest;
+};
 
 
-void run_iteration(vector<vector<Node>>& graph,
-                   const vector<float>& pmf,
-                   const std::map<int, TransitionRoot>& p_bigram) {
-    for (auto& word_model : graph) {
-        for (auto& node : word_model) {
-            for (auto transition_link : node.linked_nodes) {                
-                Node* linked_ptr = &graph[transition_link.model_id][transition_link.node_index];
+class CrossTransition : public Transition {
+    public:
+        CrossTransition(Node* src, Node* dest, double p_transition):
+            m_src(src), m_dest(dest), m_p_transition(p_transition), m_cost(- log(m_p_transition))
+        {
+        }
+        void pass_token(const vector<double>& emission_pmf) override {
+            int code = m_dest->code();
+            double p = emission_pmf[m_dest->code()];
+            double new_score = m_src->score() + emission_cost(p) + m_cost;
 
-                double new_score = node.score - log(pmf[linked_ptr->code]);
-                if (linked_ptr->is_input && node.is_output) {
-                    auto it = p_bigram.find(transition_link.model_id);
-                    double p = 0;
+            Candidate candidate(new_score, m_src->model_id(), m_src->node_id());
+            m_dest->pass_token(candidate);
+        }
+    private:
+        Node* m_src;
+        Node* m_dest;
+        double m_p_transition;
+        double m_cost;
+};
 
-                    if (it == p_bigram.end()) {
-                        // verify this!
-                        TransitionRoot root = p_bigram.find(transition_link.model_id)->second;
 
-                        double p = root.probability(transition_link.node_index);
+class InitialTransition : public Transition {
+    public:
+        InitialTransition(Node* dest, double p_transition):
+            m_dest(dest), m_p_transition(p_transition), m_done(false)
+        {
+        }
+
+        void pass_token(const vector<double>& emission_pmf) override {
+            // remove duplication
+            if (!m_done) {
+                int code = m_dest->code();
+                double p = emission_pmf[m_dest->code()];
+    
+                Candidate candidate;
+                candidate.score = emission_cost(p) - log(m_p_transition);
+                m_dest->pass_token(candidate);
+                m_done = true;
+            }
+        }
+    private:
+        Node* m_dest;
+        bool m_done;
+        double m_p_transition;
+};
+
+
+class Graph {
+    public:
+        Graph(const std::vector<WordRepresentation>& dictionary,
+              const std::map<int, TransitionRoot>& p_bigram,
+              const std::vector<std::vector<double>>& pmfs): m_pmfs(pmfs)
+        {
+            init_models(dictionary);
+            make_word_level_transitions(pmfs);
+            make_initial_transitions();
+            make_cross_transitions(p_bigram);
+        }
+
+        void run_search() {
+            for (auto& transition : m_initial) {
+                transition.pass_token(m_pmfs[0]);
+            }
+
+            for (int t = 0; t < m_pmfs.size(); t++) {
+                iterate(t);
+            }
+        }
+
+        list<int> optimal_path() {
+            auto node = top_rated_node();
+
+            list<int> result;
+            result.push_front(node.code());
+
+            int num_iterations = node.num_iterations();
+
+            //NodeId node_id = node.back_link(num_iterations - 1);
+            //Node node = m_words[node_id.model_id][node_id.node_index];
+
+            for (int t = num_iterations - 1; t >= 0; t--) {
+                NodeId node_id = node.back_link(t);
+                node = m_words[node_id.model_id][node_id.node_index];
+                result.push_front(node.code());
+            }
+
+            return result;
+        }
+    private:
+        const std::vector<std::vector<double>>& m_pmfs;
+        vector<vector<Node>> m_words;
+        vector<InternalTransition> m_internal;
+        vector<CrossTransition> m_crossing;
+        vector<InitialTransition> m_initial;
+
+        void init_models(const std::vector<WordRepresentation>& dictionary) {
+            for (int i = 0; i < dictionary.size(); i++) {
+                auto word = dictionary[i];
+                auto codes = word.as_vector();
+
+                vector<Node> model;
+
+                for (auto code : codes) {
+                    Node node(model.size(), i, code);
+                    model.push_back(node);
+                }
+
+                m_words.push_back(model);
+            }
+        }
+
+        void make_initial_transitions() {
+            for (auto& model : m_words) {
+                Node* node = &model[0];
+                m_initial.push_back(InitialTransition(node, 1 / 4000.0));
+            }
+        }
+
+        void make_word_level_transitions(const std::vector<std::vector<double>>& pmfs) {
+            for (int i = 0; i < m_words.size(); i++) {
+                for (int j = 0; j < m_words[i].size(); j++) {
+                    Node* src = &m_words[i][j];
+                    Node* dest = src;
+                    m_internal.push_back(InternalTransition(src, src));
+
+                    int next_index = j + 1;
+                    if (next_index < m_words[i].size()) {
+                        Node* dest = &m_words[i][next_index];
+                        m_internal.push_back(InternalTransition(src, dest));
                     }
-                    
-                    double transition_cost = - log(p);
-                    new_score = node.score + transition_cost;
-                }
-
-                if (new_score > linked_ptr->candidate.score) {
-                    linked_ptr->candidate.score = new_score;
-                    TransitLink node_identifier;
-                    node_identifier.model_id = node.model_id;
-                    node_identifier.node_index = node.node_id;
-
-                    linked_ptr->candidate.model_id = node.model_id;
-                    linked_ptr->candidate.node_index = node.node_id;
                 }
             }
         }
-    }
-}
 
+        void make_cross_transitions(const std::map<int, TransitionRoot>& p_bigram) {
+            for (auto [index_from, transition_root] : p_bigram) {
+                auto children = transition_root.children();
+                for (auto [index_to, p] : children) {
+                    auto word_src = m_words[index_from];
 
-void commit(vector<vector<Node>>& graph) {
-    for (auto& word_model : graph) {
-        for (auto& node : word_model) {
-            node.score = node.candidate.score;
+                    Node* node_src = &m_words[index_from][word_src.size() - 1];
+                    Node* node_dest = &m_words[index_to][0];
 
-            TransitLink transit_link;
-            transit_link.node_index = node.candidate.node_index;
-            transit_link.model_id = node.candidate.model_id;
-            node.history.push_back(transit_link);
-        }
-    }
-}
-
-
-Node top_rated_node(const vector<vector<Node>>& graph) {
-    double max_score = -1;
-    Node res = graph[0][0];
-    for (auto word_model : graph) {
-        for (auto node : word_model) {
-            if (node.score > max_score) {
-                max_score = node.score;
-                res = node;
+                    m_crossing.push_back(CrossTransition(node_src, node_dest, p));
+                }
             }
         }
-    }
 
-    return res;
-}
+        void iterate(int t) {
+            auto pmf = m_pmfs[t];
+            
+            for (auto& transition : m_internal) {
+                transition.pass_token(pmf);
+            }
 
+            for (auto& transition : m_crossing) {
+                transition.pass_token(pmf);
+            }
 
-vector<vector<Node>> create_graph(const std::vector<WordRepresentation>& dictionary) {
-    vector<vector<Node>> graph;
-
-    for (int i = 0; i < dictionary.size(); i++) {
-        auto word = dictionary[i];
-        auto codes = word.as_vector();
-        auto model = create_model({1, 2, 3, 4}, i);
-        graph.push_back(model);
-    }
-
-    for (auto& model_a : graph) {
-        for (auto model_b : graph) {
-            TransitLink word_link;
-            word_link.model_id = model_b[0].model_id;
-            word_link.node_index = 0;
-            model_a[model_a.size() - 1].linked_nodes.push_back(word_link);
+            commit();
         }
+
+        void commit() {
+            for (auto& word_model : m_words) {
+                for (auto& node : word_model) {
+                    node.commit();
+                }
+            }
+        }
+
+        Node top_rated_node() {
+            double min_score = std::numeric_limits<double>::infinity();
+            Node res = m_words[0][0];
+            for (auto word_model : m_words) {
+                for (auto node : word_model) {
+                    if (node.score() < min_score) {
+                        min_score = node.score();
+                        res = node;
+                    }
+                }
+            }
+
+            return res;
+        }
+};
+
+
+std::vector<std::vector<double>> debug_pmf() {
+    std::vector<std::vector<double>> p;
+    
+    std::vector<double> v;
+    for (int i = 0; i < 100; i++) {
+        v.push_back(0.5);
     }
 
-    return graph;
-}
-
-
-list<int> get_optimal_path(const vector<vector<Node>>& graph) {
-    auto node = top_rated_node(graph);
-
-    list<int> result;
-    result.push_front(node.code);
-
-    int num_iterations = node.history.size();
-
-    for (int t = num_iterations - 1; t >= 0; t--) {
-        auto model_id = node.history[t].model_id;
-        auto node_index = node.history[t].node_index;
-        Node node = graph[model_id][node_index];
-        result.push_front(node.code);
+    for (int i = 0; i < 100; i++) {
+        p.push_back(v);
     }
 
-    return result;
+    return p;
 }
 
 
 list<int> token_passing(const std::vector<WordRepresentation>& dictionary,
                         const std::map<int, TransitionRoot>& transitions,
-                        const std::vector<std::vector<float>>& pmfs) {
-    auto graph = create_graph(dictionary);
-
-    int num_iterations = pmfs.size();
-
-    for (int t = 0; t < num_iterations; t++) {
-        run_iteration(graph, pmfs[t], transitions);
-        commit(graph);
-    }
-
-    list<int> result = get_optimal_path(graph);
-
-    return result;
+                        const std::vector<std::vector<double>>& pmfs) {
+    
+    Graph graph(dictionary, transitions, pmfs);
+    graph.run_search();
+    return graph.optimal_path();
 }
 
 
 int main(int argc, char *argv[])
 {
+    //todo: too long argument list error, try to pass arguments via socket or file
+    //todo: find and fix performance bottleneck
     auto args = MySpace::parse_args(argc, argv);
 
     auto dictionary = get_dictionary(args.dictionary_path);
+
     std::map<int, TransitionRoot> transitions = get_transitions(args.bigrams_path);
 
     auto result = token_passing(dictionary, transitions, args.distributions);
 
-    cout << "\n";
     for (auto code : result) {
         cout << code << " ";
     }

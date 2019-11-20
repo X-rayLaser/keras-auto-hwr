@@ -100,7 +100,7 @@ class MakePrediction(ResponseStrategy):
         X = self._preprocess_input(points_4d)
 
         factory = BestPathDecodingFactory(model, preprocessor, encoding_table)
-        #factory = TokenPassingDecodingFactory(model, preprocessor, encoding_table)
+        factory = TokenPassingDecodingFactory(model, preprocessor, encoding_table)
 
         predictor = factory.get_predictor()
 
