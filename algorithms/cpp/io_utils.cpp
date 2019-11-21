@@ -2,11 +2,17 @@
 #include <fstream>
 #include <sstream>
 #include <iterator>
- 
-WordRepresentation::WordRepresentation(std::vector<int> v) : m_v(v) {}
+#include <iostream>
+
+WordRepresentation::WordRepresentation(std::vector<int> v, double p) : m_v(v), m_p(p) {}
 
 std::vector<int> WordRepresentation::as_vector() {
     return m_v;
+}
+
+
+double WordRepresentation::probability() {
+    return m_p;
 }
 
 
@@ -23,6 +29,7 @@ double TransitionRoot::probability(int to) {
         return 0.0;
     }
 }
+
 
 std::vector<std::pair<int, double>> TransitionRoot::children() {
     std::vector<std::pair<int, double>> v;
@@ -44,10 +51,13 @@ std::vector<WordRepresentation> get_dictionary(std::string file_path) {
     while (std::getline(ifs, s))
     {
         std::istringstream iss{ s };
+
+        double p;
+        iss >> p;
    
         std::vector<int> data{std::istream_iterator<int>(iss), std::istream_iterator<int>()};
 
-        WordRepresentation wr(data);
+        WordRepresentation wr(data, p);
         res.push_back(wr);
     }
 

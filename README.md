@@ -153,7 +153,7 @@ python compile.py 'MyDataProvider' 'default' --num_examples=1
 
 ## Using Token Passing decoding algorithm
 
-Change directory to ./algorithms/cpp:
+Change your current working directory to ./algorithms/cpp:
 ```
     cd ./algorithms/cpp
 ```

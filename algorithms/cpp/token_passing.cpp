@@ -14,6 +14,11 @@
 using namespace std;
 
 
+inline double compute_cost(double p) {
+    return - log(p);
+}
+
+
 struct NodeId {
     int model_id;
     int node_index;
@@ -101,11 +106,7 @@ class Node {
 
 class Transition {
     public:
-        virtual void pass_token(const vector<double>& emission_pmf) = 0;
-
-        double emission_cost(double p) {
-            return - log(p);
-        }
+        virtual void pass_token(const vector<double>& emission_costs) = 0;
 };
 
 
@@ -116,10 +117,10 @@ class InternalTransition : public Transition {
         {
         }
 
-        void pass_token(const vector<double>& emission_pmf) override {
+        void pass_token(const vector<double>& emission_costs) override {
             int code = m_dest->code();
-            double p = emission_pmf[code];
-            float new_score = m_src->score() + emission_cost(p);
+            double cost = emission_costs[code];
+            float new_score = m_src->score() + cost;
 
             Candidate candidate(new_score, m_src->node_id());
             m_dest->pass_token(candidate);
@@ -132,14 +133,13 @@ class InternalTransition : public Transition {
 
 class CrossTransition : public Transition {
     public:
-        CrossTransition(Node* src, Node* dest, double p_transition):
-            m_src(src), m_dest(dest), m_p_transition(p_transition), m_cost(- log(m_p_transition))
+        CrossTransition(Node* src, Node* dest, double transition_cost):
+            m_src(src), m_dest(dest), m_cost(transition_cost)
         {
         }
-        void pass_token(const vector<double>& emission_pmf) override {
+        void pass_token(const vector<double>& emission_costs) override {
             int code = m_dest->code();
-            double p = emission_pmf[m_dest->code()];
-            double new_score = m_src->score() + emission_cost(p) + m_cost;
+            double new_score = m_src->score() + emission_costs[m_dest->code()] + m_cost;
 
             Candidate candidate(new_score, m_src->node_id());
             m_dest->pass_token(candidate);
@@ -147,26 +147,24 @@ class CrossTransition : public Transition {
     private:
         Node* m_src;
         Node* m_dest;
-        double m_p_transition;
         double m_cost;
 };
 
 
 class InitialTransition : public Transition {
     public:
-        InitialTransition(Node* dest, double p_transition):
-            m_dest(dest), m_p_transition(p_transition), m_done(false)
+        InitialTransition(Node* dest, double transition_cost):
+            m_dest(dest), m_cost(transition_cost), m_done(false)
         {
         }
 
-        void pass_token(const vector<double>& emission_pmf) override {
+        void pass_token(const vector<double>& emission_costs) override {
             // remove duplication
             if (!m_done) {
                 int code = m_dest->code();
-                double p = emission_pmf[m_dest->code()];
     
                 Candidate candidate;
-                candidate.score = emission_cost(p) - log(m_p_transition);
+                candidate.score = emission_costs[m_dest->code()] + m_cost;
                 m_dest->pass_token(candidate);
                 m_done = true;
             }
@@ -174,7 +172,7 @@ class InitialTransition : public Transition {
     private:
         Node* m_dest;
         bool m_done;
-        double m_p_transition;
+        double m_cost;
 };
 
 
@@ -182,8 +180,9 @@ class Graph {
     public:
         Graph(const std::vector<WordRepresentation>& dictionary,
               const std::map<int, TransitionRoot>& p_bigram,
-              const std::vector<std::vector<double>>& pmfs): m_pmfs(pmfs)
+              const std::vector<std::vector<double>>& pmfs)
         {
+            precompute_costs(pmfs);
             init_models(dictionary);
             make_word_level_transitions(pmfs);
             make_initial_transitions();
@@ -192,10 +191,10 @@ class Graph {
 
         void run_search() {
             for (auto& transition : m_initial) {
-                transition.pass_token(m_pmfs[0]);
+                transition.pass_token(m_emission_costs[0]);
             }
 
-            for (int t = 0; t < m_pmfs.size(); t++) {
+            for (int t = 0; t < m_emission_costs.size(); t++) {
                 iterate(t);
             }
         }
@@ -233,16 +232,30 @@ class Graph {
             return result;
         }
     private:
-        const std::vector<std::vector<double>>& m_pmfs;
+        std::vector<std::vector<double>> m_emission_costs;
         vector<vector<Node>> m_words;
         vector<InternalTransition> m_internal;
         vector<CrossTransition> m_crossing;
         vector<InitialTransition> m_initial;
+        vector<double> m_word_probabilities;
+
+        void precompute_costs(const std::vector<std::vector<double>>& pmfs) {
+            for (const auto& pmf : pmfs) {
+                std::vector<double> costs;
+
+                for (auto p : pmf) {
+                    costs.push_back(compute_cost(p));
+                }
+
+                m_emission_costs.push_back(costs);
+            }
+        }
 
         void init_models(const std::vector<WordRepresentation>& dictionary) {
             for (int i = 0; i < dictionary.size(); i++) {
                 auto word = dictionary[i];
                 auto codes = word.as_vector();
+                m_word_probabilities.push_back(word.probability());
 
                 vector<Node> model;
 
@@ -258,7 +271,9 @@ class Graph {
         void make_initial_transitions() {
             for (auto& model : m_words) {
                 Node* node = &model[0];
-                m_initial.push_back(InitialTransition(node, 1 / 4000.0));
+                double p = m_word_probabilities[node->node_id().model_id];
+                double transition_cost = compute_cost(p);
+                m_initial.push_back(InitialTransition(node, transition_cost));
             }
         }
 
@@ -287,20 +302,22 @@ class Graph {
                     Node* node_src = &m_words[index_from][word_src.size() - 1];
                     Node* node_dest = &m_words[index_to][0];
 
-                    m_crossing.push_back(CrossTransition(node_src, node_dest, p));
+                    double transition_cost = compute_cost(p);
+                    if (transition_cost != - log(p)) {
+                        std::terminate();
+                    }
+                    m_crossing.push_back(CrossTransition(node_src, node_dest, transition_cost));
                 }
             }
         }
 
         void iterate(int t) {
-            auto pmf = m_pmfs[t];
-            
             for (auto& transition : m_internal) {
-                transition.pass_token(pmf);
+                transition.pass_token(m_emission_costs[t]);
             }
 
             for (auto& transition : m_crossing) {
-                transition.pass_token(pmf);
+                transition.pass_token(m_emission_costs[t]);
             }
 
             commit();
@@ -350,7 +367,6 @@ std::vector<std::vector<double>> debug_pmf() {
 list<int> token_passing(const std::vector<WordRepresentation>& dictionary,
                         const std::map<int, TransitionRoot>& transitions,
                         const std::vector<std::vector<double>>& pmfs) {
-    
     Graph graph(dictionary, transitions, pmfs);
     graph.run_search();
     return graph.optimal_path();

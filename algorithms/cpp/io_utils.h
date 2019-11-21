@@ -5,10 +5,12 @@
  
 class WordRepresentation {
   public:
-    WordRepresentation(std::vector<int> v);
+    WordRepresentation(std::vector<int> v, double p);
     std::vector<int> as_vector();
+    double probability();
   private:
     std::vector<int> m_v;
+    double m_p;
 };
 
 
@@ -19,7 +21,6 @@ class TransitionRoot {
         TransitionRoot(int src, std::map<int, double> transitions);
         TransitionRoot(const TransitionRoot& root);
         double probability(int to);
-
         std::vector<std::pair<int, double>> children();
     private:
         int m_from;

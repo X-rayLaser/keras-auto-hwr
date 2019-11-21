@@ -6,14 +6,16 @@ from data.data_set_home import DataSetHome, create_deterministic_source
 
 
 class DictionaryBuilder:
-    def build(self, max_words):
-        bigram_freqs, most_common_words = self.extract_word_bigrams(max_words)
+    def build(self, max_words, max_bigrams):
+        bigram_freqs, most_common_words, word_to_p = self.extract_word_bigrams(
+            max_words, max_bigrams
+        )
 
         d = self.to_nested_dict(bigram_freqs)
 
         transitions = self.to_probabilities(d)
 
-        return WordDictionary(list(most_common_words), transitions)
+        return WordDictionary(list(most_common_words), transitions), word_to_p
 
     def get_file_ids(self):
         try:
@@ -23,7 +25,7 @@ class DictionaryBuilder:
             file_ids = webtext.fileids()
         return file_ids
 
-    def extract_word_bigrams(self, max_words):
+    def extract_word_bigrams(self, max_words, max_bigrams):
         file_ids = self.get_file_ids()
 
         all_words = []
@@ -33,12 +35,19 @@ class DictionaryBuilder:
 
         most_common_words = set([w for w, _ in nltk.FreqDist(all_words).most_common(max_words)])
 
+        word_to_p = {}
+        total = sum(freq for w, freq in nltk.FreqDist(all_words).items() if w in most_common_words)
+
+        for w, freq in nltk.FreqDist(all_words).items():
+            if w in most_common_words:
+                word_to_p[w] = freq / float(total)
+
         bigrams = []
         for w_from, w_to in nltk.bigrams(all_words):
             if w_from in most_common_words and w_to in most_common_words:
                 bigrams.append((w_from, w_to))
 
-        return nltk.FreqDist(bigrams).most_common(), most_common_words
+        return nltk.FreqDist(bigrams).most_common(max_bigrams), most_common_words, word_to_p
 
     def to_nested_dict(self, bigram_freqs):
         d = {}
@@ -65,10 +74,12 @@ class DictionaryBuilder:
         return transitions
 
 
-def save_dictionary(word_dictionary, dict_path):
+def save_dictionary(word_dictionary, dict_path, word_to_p):
     with open(dict_path, 'w') as f:
 
         for i in range(len(word_dictionary)):
+            word = word_dictionary.words[i]
+            p = word_to_p[word]
             codes = word_dictionary.encoded(i, encoding_table)
 
             blank = len(encoding_table)
@@ -77,8 +88,8 @@ def save_dictionary(word_dictionary, dict_path):
                 with_blanks.append(code)
                 with_blanks.append(blank)
 
-            s = ' '.join(map(str, with_blanks))
-            f.write(s + '\n')
+            code_str = ' '.join(map(str, with_blanks))
+            f.write('{} {}\n'.format(p, code_str))
 
 
 def save_bigrams(word_dictionary, bigrams_path):
@@ -106,11 +117,12 @@ if __name__ == '__main__':
     parser.add_argument('destination', type=str)
     parser.add_argument('--lang', type=str, default='eng')
     parser.add_argument('--max_words', type=int, default=10000)
+    parser.add_argument('--max_bigrams', type=int, default=10**7)
 
     args = parser.parse_args()
 
     builder = DictionaryBuilder()
-    word_dictionary = builder.build(args.max_words)
+    word_dictionary, word_to_p = builder.build(args.max_words, args.max_bigrams)
     word_dictionary.save('english.json')
 
     ds_home = os.path.join(os.getcwd(), 'compiled', 'ds1')
@@ -122,7 +134,7 @@ if __name__ == '__main__':
     dict_path = os.path.join(dict_location, 'dictionary.txt')
     bigrams_path = os.path.join(dict_location, 'bigrams.txt')
 
-    save_dictionary(word_dictionary, dict_path)
+    save_dictionary(word_dictionary, dict_path, word_to_p)
     save_bigrams(word_dictionary, bigrams_path)
 
 
