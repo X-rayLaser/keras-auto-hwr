@@ -297,9 +297,7 @@ class TokenPassing:
         return token.words
 
 
-def token_passing_cpp(pmfs, encoding_table):
-    # todo must return a list of words
-    # todo: weird code 2047 received
+def token_passing_cpp(pmfs):
     import subprocess
 
     num_steps = len(pmfs)
@@ -314,20 +312,12 @@ def token_passing_cpp(pmfs, encoding_table):
         f.write('{} {}\n'.format(num_steps, num_classes))
         f.write('{}\n'.format(prob_str))
 
-    args = ["./algorithms/cpp/token_passing", "./algorithms/cpp/dictionary.txt",
-            "./algorithms/cpp/bigrams.txt", "./pmf.txt"]
+    args = ["./algorithms/cpp/token_passing", "./dictionary/dictionary.txt",
+            "./dictionary/bigrams.txt", "./pmf.txt"]
 
     s = subprocess.check_output(args, universal_newlines=True)
 
-    from models.ctc_model import CTCOutputDecoder
-
-    print(s.split(' '))
-    codes = list(map(int, s.split(' ')[:-1]))
-    print(codes)
-    res = CTCOutputDecoder(encoding_table).decode(codes)
-
-    raise Exception(res)
-    return res
+    return list(map(int, s.split(' ')[:-1]))
 
 
 # todo: each word can start or end with punctuation sign

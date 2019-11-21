@@ -82,9 +82,10 @@ class GetNormalizer(ResponseStrategy):
 
 
 class MakePrediction(ResponseStrategy):
-    def __init__(self, dataset_location, data):
+    def __init__(self, dataset_location, data, factory_class):
         super().__init__(dataset_location)
         self.data = data
+        self.factory_class = factory_class
 
     def make_response(self, wfile):
         data_string = self.data
@@ -99,8 +100,7 @@ class MakePrediction(ResponseStrategy):
 
         X = self._preprocess_input(points_4d)
 
-        factory = BestPathDecodingFactory(model, preprocessor, encoding_table)
-        factory = TokenPassingDecodingFactory(model, preprocessor, encoding_table)
+        factory = self.factory_class(model, preprocessor, encoding_table)
 
         predictor = factory.get_predictor()
 
@@ -124,7 +124,7 @@ class MakePrediction(ResponseStrategy):
         return X
 
 
-def make_handler_class(home_location):
+def make_handler_class(home_location, factory_class):
     class MyHandler(SimpleHTTPRequestHandler):
         def do_GET(self):
             static_files = ['/demo/public/index.html', '/demo/public/index.js']
@@ -145,7 +145,7 @@ def make_handler_class(home_location):
             data_string = self.rfile.read(length)
 
             routes = {
-                '/recognize': MakePrediction(home_location, data_string)
+                '/recognize': MakePrediction(home_location, data_string, factory_class)
             }
 
             if self.path in routes:
@@ -162,9 +162,9 @@ def open_browser():
     thread.start()
 
 
-def start_server(home_location):
+def start_server(home_location, factory_class):
     server_address = ("", PORT)
-    handler_class = make_handler_class(home_location)
+    handler_class = make_handler_class(home_location, factory_class)
     server = HTTPServer(server_address, handler_class)
     server.serve_forever()
 
@@ -180,7 +180,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     open_browser()
-    start_server(args.home)
+
+    if args.token_passing:
+        factory_class = TokenPassingDecodingFactory
+    else:
+        factory_class = BestPathDecodingFactory
+    start_server(args.home, factory_class)
 
 
 # todo: customize size of canvas

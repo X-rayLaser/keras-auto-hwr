@@ -14,6 +14,12 @@
 using namespace std;
 
 
+struct NodeId {
+    int model_id;
+    int node_index;
+};
+
+
 struct Candidate {
     double score;
     int model_id;
@@ -25,17 +31,11 @@ struct Candidate {
         this->node_index = -1;
     }
 
-    Candidate(double score, double model_id, double node_index) {
+    Candidate(double score, NodeId node_id) {
         this->score = score;
-        this->model_id = model_id;
-        this->node_index = node_index;
+        this->model_id = node_id.model_id;
+        this->node_index = node_id.node_index;
     }
-};
-
-
-struct NodeId {
-    int model_id;
-    int node_index;
 };
 
 
@@ -67,12 +67,11 @@ class Node {
             return m_history[t];
         }
 
-        int node_id() {
-            return m_node_id;
-        }
-
-        int model_id() {
-            return m_model_id;
+        NodeId node_id() {
+            NodeId nid;
+            nid.node_index = m_node_id;
+            nid.model_id = m_model_id;
+            return nid;
         }
 
         int code() {
@@ -122,7 +121,7 @@ class InternalTransition : public Transition {
             double p = emission_pmf[code];
             float new_score = m_src->score() + emission_cost(p);
 
-            Candidate candidate(new_score, m_src->model_id(), m_src->node_id());
+            Candidate candidate(new_score, m_src->node_id());
             m_dest->pass_token(candidate);
         }
     private:
@@ -142,7 +141,7 @@ class CrossTransition : public Transition {
             double p = emission_pmf[m_dest->code()];
             double new_score = m_src->score() + emission_cost(p) + m_cost;
 
-            Candidate candidate(new_score, m_src->model_id(), m_src->node_id());
+            Candidate candidate(new_score, m_src->node_id());
             m_dest->pass_token(candidate);
         }
     private:
@@ -204,18 +203,31 @@ class Graph {
         list<int> optimal_path() {
             auto node = top_rated_node();
 
-            list<int> result;
-            result.push_front(node.code());
+            list<NodeId> ids;
+            ids.push_front(node.node_id());
 
             int num_iterations = node.num_iterations();
 
-            //NodeId node_id = node.back_link(num_iterations - 1);
-            //Node node = m_words[node_id.model_id][node_id.node_index];
-
-            for (int t = num_iterations - 1; t >= 0; t--) {
+            for (int t = num_iterations - 1; t > 0; t--) {
                 NodeId node_id = node.back_link(t);
                 node = m_words[node_id.model_id][node_id.node_index];
-                result.push_front(node.code());
+                ids.push_front(node_id);
+            }
+
+            list<int> result;
+
+            NodeId prev;
+            prev.model_id = -1;
+            prev.node_index = -1;
+
+            for (auto node_id : ids) {
+                if ((node_id.model_id != prev.model_id) || (node_id.node_index != prev.node_index) ) {
+                    if (node_id.node_index == 0) {
+                        result.push_back(node_id.model_id);
+                    }
+
+                    prev = node_id;
+                }
             }
 
             return result;
@@ -347,7 +359,6 @@ list<int> token_passing(const std::vector<WordRepresentation>& dictionary,
 
 int main(int argc, char *argv[])
 {
-    //todo: too long argument list error, try to pass arguments via socket or file
     //todo: find and fix performance bottleneck
     auto args = MySpace::parse_args(argc, argv);
 
@@ -357,8 +368,8 @@ int main(int argc, char *argv[])
 
     auto result = token_passing(dictionary, transitions, args.distributions);
 
-    for (auto code : result) {
-        cout << code << " ";
+    for (auto word_index : result) {
+        cout << word_index << " ";
     }
 
     return 0;

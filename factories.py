@@ -30,8 +30,9 @@ class BestPathDecodingFactory(CTCPredictorFactory):
 
 class TokenPassingDecodingFactory(CTCPredictorFactory):
     class OutputDecoder:
-        def __init__(self, word_dict):
+        def __init__(self, word_dict, text_encoder):
             self._word_dict = word_dict
+            self._text_encoder = text_encoder
 
         def decode(self, labels):
             words = [self._word_dict.words[label] for label in labels]
@@ -43,6 +44,6 @@ class TokenPassingDecodingFactory(CTCPredictorFactory):
         word_dict = WordDictionary.load('english.json')
         class_predictor = TokenPassingPredictor(self._model, word_dict, self._text_encoder)
 
-        decoder = self.OutputDecoder(word_dict)
+        decoder = self.OutputDecoder(word_dict, self._text_encoder)
 
         return Predictor(class_predictor, self._preprocessor, adapter, decoder)

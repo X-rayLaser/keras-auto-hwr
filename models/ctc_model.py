@@ -6,7 +6,7 @@ import os
 from keras.callbacks import Callback, TensorBoard
 from tests.test_predictor import DebugPredictor
 from data.example_adapters import CTCAdapter
-from algorithms.token_passing import TokenPassing
+from algorithms.token_passing import token_passing_cpp
 
 
 class CtcModel:
@@ -110,15 +110,7 @@ class TokenPassingPredictor:
 
     def predict(self, x):
         pmfs = self._model.predict(x)[0]
-
-        from algorithms.token_passing import token_passing_cpp
-
-        token_passing_cpp(pmfs, self._encoding_table)
-
-        dictionary = self._word_dict
-        algo = TokenPassing(dictionary, pmfs, self._encoding_table)
-
-        return algo.decode()
+        return token_passing_cpp(pmfs)
 
 
 class MyCallback(Callback):

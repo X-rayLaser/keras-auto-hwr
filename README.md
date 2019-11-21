@@ -151,6 +151,32 @@ Next, compile a data set using a newly implemented data provider:
 python compile.py 'MyDataProvider' 'default' --num_examples=1
 ```
 
+## Using Token Passing decoding algorithm
+
+Change directory to ./algorithms/cpp:
+```
+    cd ./algorithms/cpp
+```
+
+Compile and link C++ code into binary:
+```
+    g++ -o token_passing argparser.cpp io_utils.cpp token_passing.cpp
+```
+
+Now you should be able to use Token Passing algorithm
+for decoding RNN output in a demo script.
+For that, simply set a "token_passing" flag to true:
+```
+    python demo/ocr_demo.py --token_passing="true"
+```
+
+
+## Running tests
+
+```
+python -m unittest discover -s tests
+```
+
 # License
 
 This software is licensed under MIT license (see LICENSE).
