@@ -6,7 +6,7 @@ namespace MySpace {
     struct CmdArgs {
         std::string dictionary_path;
         std::string bigrams_path;
-        std::vector<std::vector<double>> distributions;
+        std::string logits_path;
     };
 
 

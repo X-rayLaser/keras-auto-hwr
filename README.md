@@ -160,7 +160,7 @@ Change your current working directory to ./algorithms/cpp:
 
 Compile and link C++ code into binary:
 ```
-    g++ -o token_passing argparser.cpp io_utils.cpp token_passing.cpp
+    g++ -o token_passing argparser.cpp io_utils.cpp token_passing.cpp main.cpp
 ```
 
 Now you should be able to use Token Passing algorithm
