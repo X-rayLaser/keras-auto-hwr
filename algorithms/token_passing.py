@@ -312,7 +312,8 @@ def token_passing_cpp(pmfs):
         f.write('{} {}\n'.format(num_steps, num_classes))
         f.write('{}\n'.format(prob_str))
 
-    args = ["./algorithms/cpp/token_passing", "./dictionary/dictionary.txt",
+    binary_location = "./algorithms/cpp/build/token_passing"
+    args = [binary_location, "./dictionary/dictionary.txt",
             "./dictionary/bigrams.txt", "./pmf.txt"]
 
     s = subprocess.check_output(args, universal_newlines=True)

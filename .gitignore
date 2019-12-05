@@ -9,6 +9,7 @@ logs/
 backup_weights/
 weights/
 dictionary/
+algorithms/cpp/build
 *.o
 algorithms/cpp/token_passing
 algorithms/cpp/dictionary.txt

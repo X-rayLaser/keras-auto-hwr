@@ -92,6 +92,15 @@ def save_dictionary(word_dictionary, dict_path, word_to_p):
             f.write('{} {}\n'.format(p, code_str))
 
 
+def build_dictionary_index(word_dictionary, index_path):
+    """Index of each line in the output file will matches
+    the index of corresponding word encoding"""
+    with open(index_path, 'w') as f:
+        for i in range(len(word_dictionary)):
+            word = word_dictionary.words[i]
+            f.write('{}\n'.format(word))
+
+
 def save_bigrams(word_dictionary, bigrams_path):
     d = word_dictionary.to_nested_dict(word_dictionary.transitions)
 
@@ -133,9 +142,11 @@ if __name__ == '__main__':
 
     dict_path = os.path.join(dict_location, 'dictionary.txt')
     bigrams_path = os.path.join(dict_location, 'bigrams.txt')
+    index_path = os.path.join(dict_location, 'words.txt')
 
     save_dictionary(word_dictionary, dict_path, word_to_p)
     save_bigrams(word_dictionary, bigrams_path)
+    build_dictionary_index(word_dictionary, index_path)
 
 
 # todo perform this step automatically during compilation step

@@ -1,3 +1,4 @@
 #!/bin/bash
-g++ -o token_passing argparser.cpp io_utils.cpp token_passing.cpp main.cpp
+mkdir -p build
+g++ -o build/token_passing argparser.cpp io_utils.cpp token_passing.cpp main.cpp
 

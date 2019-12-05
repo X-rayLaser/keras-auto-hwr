@@ -163,6 +163,16 @@ Compile and link C++ code into binary:
     g++ -o token_passing argparser.cpp io_utils.cpp token_passing.cpp main.cpp
 ```
 
+Return to the root path of the project
+```
+    cd ../../
+```
+
+Build a dictionary and language model (e. g. containing 4000 words)
+```
+    python build_lang_model.py <destination path> --max_words=4000
+```
+
 Now you should be able to use Token Passing algorithm
 for decoding RNN output in a demo script.
 For that, simply set a "token_passing" flag to true:
