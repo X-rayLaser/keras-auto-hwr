@@ -54,7 +54,7 @@ string run_algorithm(string dict_path, string bigrams_path, vector<vector<double
 
     auto result = token_passing(dictionary, transitions, pmf);
 
-    std::string s;
+    string s;
     for (auto word_index : result) {
         s += std::to_string(word_index) + " ";
     }
@@ -62,17 +62,29 @@ string run_algorithm(string dict_path, string bigrams_path, vector<vector<double
     return s;
 }
 
+
+vector<vector<double>> make_matrix(double* flatten, int h, int w) {
+    vector<vector<double>> rows;
+    int count = 0;
+    for (int i = 0; i < h; i++) {
+        vector<double> v;
+        for (int j = 0; j < w; j++) {
+            v.push_back(flatten[count]);
+            count += 1;
+        }
+        rows.push_back(v);
+    }
+
+    return rows;
+}
+
+
 extern "C" {
-    char* token_passing_js(char* dictionary_path, char* bigrams_path, int steps, int num_classes, double** logits) {
+    char* token_passing_js(char* dictionary_path, char* bigrams_path, int steps, int num_classes, double* logits) {
         string dict_path(dictionary_path);
         string bi_path(bigrams_path);
 
-        vector<vector<double>> pmf(steps);
-        for (int t = 0; t < steps; t++) {
-            for (int c = 0; c < num_classes; c++) {
-                pmf[t].push_back(logits[t][c]);
-            }
-        }
+        vector<vector<double>> pmf = make_matrix(logits, steps, num_classes);
 
         string s = run_algorithm(dict_path, bi_path, pmf);
 
