@@ -160,7 +160,7 @@ Change your current working directory to ./algorithms/cpp:
 
 Compile and link C++ code into binary:
 ```
-    g++ -o token_passing argparser.cpp io_utils.cpp token_passing.cpp main.cpp
+    ./make_binary.sh
 ```
 
 Return to the root path of the project
