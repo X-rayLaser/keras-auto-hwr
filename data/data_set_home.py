@@ -4,6 +4,8 @@ from data import preprocessing, PreProcessor
 from data.encodings import TextEncodingTable
 from sources.wrappers import H5pySource
 from data.h5containers import H5pyDataSet
+from data.preprocessing import Normalizer
+from data import providers
 
 
 def create_deterministic_source(path):
@@ -42,6 +44,21 @@ class DataSetHome:
             steps.append(step)
 
         return PreProcessor(steps)
+
+    def get_normalizer(self):
+        preprocessor = self.get_preprocessor()
+
+        norm_step = preprocessor.steps[1]
+        d = norm_step.get_parameters()
+        normalizer = Normalizer()
+        normalizer.set_mean(d['mu'])
+        normalizer.set_deviation(d['sd'])
+        return normalizer
+
+    def get_provider(self):
+        provider_cls_name = self.meta_info['providers'][0]
+        cls = getattr(providers, provider_cls_name)
+        return cls(10000)
 
     def slice_path(self, slice_name):
         return os.path.join(self.meta_info['location_dir'], slice_name)

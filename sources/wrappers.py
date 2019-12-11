@@ -219,7 +219,7 @@ class ConstrainedSource(BaseSourceWrapper):
 
     def get_sequences(self):
         for j, (seq_in, seq_out) in enumerate(self._source.get_sequences()):
-            print(j, seq_out)
+            #print(j, seq_out)
             if j % 500 == 0:
                 print('Fetched {} examples'.format(j))
 

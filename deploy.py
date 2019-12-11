@@ -5,6 +5,30 @@ import tensorflow as tf
 from data.data_set_home import DataSetHome, create_random_source
 import os
 from config import CTCConfig
+from data.util import estimate_screen_width, estimate_letter_height
+import json
+
+
+def export_data_info(ds_home, path):
+    char_table = ds_home.get_encoding_table()
+    normalizer = ds_home.get_normalizer()
+
+    provider = ds_home.get_provider()
+    screen_width = estimate_screen_width(provider)
+    letter_height = estimate_letter_height(provider)
+    with open(path, 'w') as f:
+        d = {
+            'char_table': char_table._text2code,
+            'horizontal_resolution': screen_width,
+            'pixels_per_letter': letter_height,
+            'normalization': {
+                'mu': normalizer.mu,
+                'sd': normalizer.sd
+            }
+        }
+
+        s = json.dumps(d)
+        f.write(s)
 
 
 if __name__ == '__main__':
@@ -47,3 +71,6 @@ if __name__ == '__main__':
     model.load_weights(model_path)
 
     tfjs.converters.save_keras_model(model, args.output_path)
+
+    data_info_path = os.path.join(deploy_path, 'data_info.json')
+    export_data_info(data_home, data_info_path)

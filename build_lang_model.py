@@ -1,11 +1,15 @@
 import nltk
-from nltk.corpus import webtext
+from nltk import corpus
 from data.language_models import WordDictionary
 import os
 from data.data_set_home import DataSetHome, create_deterministic_source
 
 
 class DictionaryBuilder:
+    def __init__(self, nltk_corpus='brown'):
+        self.corpus_name = nltk_corpus
+        self.corpus = getattr(corpus, self.corpus_name)
+
     def build(self, max_words, max_bigrams):
         bigram_freqs, most_common_words, word_to_p = self.extract_word_bigrams(
             max_words, max_bigrams
@@ -19,10 +23,10 @@ class DictionaryBuilder:
 
     def get_file_ids(self):
         try:
-            file_ids = webtext.fileids()
+            file_ids = self.corpus.fileids()
         except LookupError:
-            nltk.download('webtext')
-            file_ids = webtext.fileids()
+            nltk.download(self.corpus_name)
+            file_ids = self.corpus.fileids()
         return file_ids
 
     def extract_word_bigrams(self, max_words, max_bigrams):
@@ -30,7 +34,7 @@ class DictionaryBuilder:
 
         all_words = []
         for file_id in file_ids:
-            words = [word for word in webtext.words(file_id) if word[0].isalnum()]
+            words = [word for word in self.corpus.words(file_id) if word[0].isalnum()]
             all_words.extend(words)
 
         most_common_words = set([w for w, _ in nltk.FreqDist(all_words).most_common(max_words)])
@@ -139,6 +143,8 @@ if __name__ == '__main__':
     encoding_table = home.get_encoding_table()
 
     dict_location = args.destination
+    if not os.path.exists(dict_location):
+        os.makedirs(dict_location)
 
     dict_path = os.path.join(dict_location, 'dictionary.txt')
     bigrams_path = os.path.join(dict_location, 'bigrams.txt')
@@ -147,6 +153,11 @@ if __name__ == '__main__':
     save_dictionary(word_dictionary, dict_path, word_to_p)
     save_bigrams(word_dictionary, bigrams_path)
     build_dictionary_index(word_dictionary, index_path)
+
+    print('Created dictionary of {} words, total of {} transition probabilities '
+          'were estimated'.format(len(word_dictionary.words),
+                                  len(word_dictionary.transitions))
+          )
 
 
 # todo perform this step automatically during compilation step
