@@ -30,4 +30,3 @@ class IamSource(BaseSource):
 
     def __len__(self):
         return self._num_lines
-        return min(len(self._source), self._num_lines)

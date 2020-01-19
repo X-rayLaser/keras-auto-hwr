@@ -10,8 +10,8 @@ from sources.wrappers import H5pySource
 
 class CompilationHome:
     def __init__(self, name):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(current_dir, 'compiled', name)
+        #current_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join('compiled', name)
         self.root_dir = path
         self.name = name
         self.meta_path = os.path.join(path, 'meta.json')
