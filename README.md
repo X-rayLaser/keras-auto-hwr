@@ -15,13 +15,13 @@ representation and more.
 - minimal pre-processing
 - automatic data normalization
 - automatic encoding of text into a sequence of one-hot vectors
-- customizable and extendable pre-processing pipeline
 - built-in model (bidirectional LSTM model trained with CTC loss)
 - train on GPU, predict on CPU
 - saving/resuming training after any epoch
 - interactive demo for testing a trained model live
 - language-agnostic (work in progress)
 - deploy a trained model for use with TensorFlow.js
+- built-in Token Passing decoding algorithm
 
 # Limitations
 At the time of this writing, there are a few major limitations such as:
@@ -30,9 +30,6 @@ At the time of this writing, there are a few major limitations such as:
 based around connectionist temporal classification
 - Fixed number of layers (2) and units (100)
 - No built-in encoder-decoder network architecture
-- Best path decoding algorithm is used to decode the output of 
-the RNN instead of more advanced ones (such as Token Passing 
-and CTC Beam Search)
 
 # Installation
 
@@ -211,4 +208,4 @@ This software is licensed under MIT license (see LICENSE).
 
 [2] [S. Young, N. Russell, and J. Thornton.  Token passing: A simple conceptual model for connected speech recognition system](https://pdfs.semanticscholar.org/963c/f8f238745100ac6cc5cf730653a6e1849b62.pdf?_ga=2.58290915.813220193.1572590064-1733760606.1572590064)
 
-[3] [Liwicki, M. and Bunke, H.: - IAM-OnDB - an On-Line English Sentence Database Acquired from Handwritten Text on a Whiteboard](http://www.fki.inf.unibe.ch/databases/iam-on-line-handwriting-database/iam-on-line-handwriting-database#LiBu05-03)
+[3] [Liwicki, M. and Bunke, H.: IAM-OnDB - an On-Line English Sentence Database Acquired from Handwritten Text on a Whiteboard](http://www.fki.inf.unibe.ch/databases/iam-on-line-handwriting-database/iam-on-line-handwriting-database#LiBu05-03)
