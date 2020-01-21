@@ -106,6 +106,7 @@ const drawPoints = (points, normalizer) => {
 
     const drawStroke = index => {
         if (index >= offsetPoints.length) {
+            enableButtons();
             return;
         }
 
@@ -145,7 +146,6 @@ const fetchExample = () => {
         let points = obj.points;
         drawPoints(points, obj.normalizer);
         globalNormalizer = obj.normalizer;
-
         $('#ground_true').text(obj.transcription);
     })
 }
@@ -179,8 +179,22 @@ function recognize(points) {
     }).then(s => {
         let obj = s;
         $('#predicted').text(obj.prediction);
+        enableButtons();
     })
 }
+
+function enableButtons() {
+    $('#recognize_button').attr("disabled", false);
+    $('#next_example_button').attr("disabled", false);
+    $('#clear_button').attr("disabled", false);
+}
+
+function disableButtons() {
+    $('#recognize_button').attr("disabled", true);
+    $('#next_example_button').attr("disabled", true);
+    $('#clear_button').attr("disabled", true);
+}
+
 
 $(document).ready(e => {
     canvas = new Canvas();
@@ -188,6 +202,7 @@ $(document).ready(e => {
     fetchNormalizer();
 
     let nextButton = $('#next_example_button').on('click', e => {
+        disableButtons();
         fetchExample();
     });
 
@@ -200,6 +215,7 @@ $(document).ready(e => {
             return [x - first[0], y - first[1], t - first[2], eos];
         })
 
+        disableButtons();
         recognize(offsetPoints);
     });
 

@@ -157,6 +157,7 @@ var drawPoints = function drawPoints(points, normalizer) {
 
   var drawStroke = function drawStroke(index) {
     if (index >= offsetPoints.length) {
+      enableButtons();
       return;
     }
 
@@ -245,13 +246,27 @@ function recognize(points) {
   }).then(function (s) {
     var obj = s;
     $('#predicted').text(obj.prediction);
+    enableButtons();
   });
+}
+
+function enableButtons() {
+  $('#recognize_button').attr("disabled", false);
+  $('#next_example_button').attr("disabled", false);
+  $('#clear_button').attr("disabled", false);
+}
+
+function disableButtons() {
+  $('#recognize_button').attr("disabled", true);
+  $('#next_example_button').attr("disabled", true);
+  $('#clear_button').attr("disabled", true);
 }
 
 $(document).ready(function (e) {
   canvas = new Canvas();
   fetchNormalizer();
   var nextButton = $('#next_example_button').on('click', function (e) {
+    disableButtons();
     fetchExample();
   });
   var recognizeButton = $('#recognize_button').on('click', function (e) {
@@ -266,6 +281,7 @@ $(document).ready(function (e) {
 
       return [x - first[0], y - first[1], t - first[2], eos];
     });
+    disableButtons();
     recognize(offsetPoints);
   });
   var clearButton = $('#clear_button').on('click', function (e) {

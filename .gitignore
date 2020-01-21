@@ -7,7 +7,7 @@ temp/
 demo/node_modules/
 logs/
 backup_weights/
-weights/
+weights/deployed
 dictionary/
 algorithms/cpp/build
 *.o
@@ -19,3 +19,4 @@ algorithms/cpp/bigrams.txt
 *.zip
 *\.vscode/
 english.json
+pmf.txt

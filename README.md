@@ -58,7 +58,7 @@ pip install -r requirements.txt
 
 # Quick Start
 
-## Iam Online DB data set
+## Training from scratch on Iam Online DB data set
 
 First, download the data set, unzip it and place it under 
 ./datasets/iam_online_db/ folder. The layout of datasets folder should
@@ -151,35 +151,49 @@ Next, compile a data set using a newly implemented data provider:
 python compile.py 'MyDataProvider' 'default' --num_examples=1
 ```
 
-## Using Token Passing decoding algorithm
+## Testing pre-trained model
+
+### Run demo script using Best Path Decoding algorithm
+```
+python demo/ocr_demo.py
+```
+
+### Run demo script using Token Passing Decoding algorithm
 
 Change your current working directory to ./algorithms/cpp:
 ```
-    cd ./algorithms/cpp
+cd ./algorithms/cpp
 ```
 
 Compile and link C++ code into binary:
 ```
-    ./make_binary.sh
+./make_binary.sh
 ```
 
 Return to the root path of the project
 ```
-    cd ../../
+cd ../../
 ```
 
 Build a dictionary and language model (e. g. containing 4000 words)
 ```
-    python build_lang_model.py <destination path> --max_words=4000
+python build_lang_model.py dictionary --max_words=4000
 ```
 
 Now you should be able to use Token Passing algorithm
 for decoding RNN output in a demo script.
 For that, simply set a "token_passing" flag to true:
 ```
-    python demo/ocr_demo.py --token_passing="true"
+python demo/ocr_demo.py --token_passing="true"
 ```
 
+### About pre-trained model
+
+The model has 1 bidirectional LSTM layer with 100 hidden units followed by a softmax layer 
+containing 100 units (one unit per character plus special codes and blank code). 
+The model was trained on the IAM On-Line Handwriting Database using 9450 examples of the 
+form: handwriting patterns -> text lines. It was trained with Adam optimizer with a 
+learning rate of 0.001 and CTC loss. The training was terminated after 31 epochs.
 
 ## Running tests
 
@@ -191,10 +205,10 @@ python -m unittest discover -s tests
 
 This software is licensed under MIT license (see LICENSE).
 
-# Credits
+# References
 
-Many ideas and implementation details were borrowed from the following papers:
+[1] [Alex Graves et. al. Unconstrained Online Handwriting Recognition with Recurrent Neural Networks](https://papers.nips.cc/paper/3213-unconstrained-on-line-handwriting-recognition-with-recurrent-neural-networks.pdf)
 
-1. [Alex Graves et. al. Unconstrained Online Handwriting Recognition with Recurrent Neural Networks](https://papers.nips.cc/paper/3213-unconstrained-on-line-handwriting-recognition-with-recurrent-neural-networks.pdf)
+[2] [S. Young, N. Russell, and J. Thornton.  Token passing: A simple conceptual model for connected speech recognition system](https://pdfs.semanticscholar.org/963c/f8f238745100ac6cc5cf730653a6e1849b62.pdf?_ga=2.58290915.813220193.1572590064-1733760606.1572590064)
 
-2. [S. Young, N. Russell, and J. Thornton.  Token passing: A simple conceptual model for connected speech recognition system](https://pdfs.semanticscholar.org/963c/f8f238745100ac6cc5cf730653a6e1849b62.pdf?_ga=2.58290915.813220193.1572590064-1733760606.1572590064)
+[3] [Liwicki, M. and Bunke, H.: - IAM-OnDB - an On-Line English Sentence Database Acquired from Handwritten Text on a Whiteboard](http://www.fki.inf.unibe.ch/databases/iam-on-line-handwriting-database/iam-on-line-handwriting-database#LiBu05-03)
